@@ -117,6 +117,7 @@ $string['eventuserconnected'] = 'Benutzer ist mit OpenID Connect verbunden.';
 $string['eventuserloggedin'] = 'Benutzer wurde mit OpenID Connect angemeldet.';
 $string['eventuserdisconnected'] = 'Benutzer ist von OpenID Connect getrennt.';
 $string['oidc:manageconnection'] = 'OpenID Connect-Verbindung verwalten';
+$string['settings_usersync_update'] = 'Aktualisiere mit EntraID verknüpfte Moodle-Konten mit EntraID-Daten';
 $string['ucp_general_intro'] = 'Hier können Sie Ihre Verbindung mit {$a} verwalten. Ist die Option deaktiviert, können Sie sich mit Ihrem {$a}-Konto bei Moodle anmelden und müssen keinen Benutzernamen und kein Kennwort eingeben. Sobald die Verbindung besteht, müssen Sie nicht mehr Ihren Benutzernamen und das Kennwort für Moodle behalten. Die gesamte Anmeldung wird von {$a} durchgeführt.';
 $string['ucp_login_start'] = 'Mit {$a} bei Moodle anmelden';
 $string['ucp_login_start_desc'] = 'Damit wird Ihr Konto umgeschaltet und es wird {$a} für die Anmeldung in Moodle verwendet. Sobald diese Option aktiviert ist, melden Sie sich mit Ihren {$a}-Anmeldedaten an. Ihr aktueller Benutzername und das Kennwort von Moodle funktionieren nicht mehr. Sie können Ihr Konto jederzeit trennen und zur normalen Anmeldung zurückkehren.';
