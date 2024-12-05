@@ -43,7 +43,7 @@ class utils {
      *
      * @return unified|null The SDS API client.
      */
-    public static function get_apiclient() : ?unified {
+    public static function get_apiclient(): ?unified {
         $httpclient = new httpclient();
         try {
             $clientdata = clientdata::instance_from_oidc();
@@ -69,7 +69,7 @@ class utils {
      * @param unified|null $apiclient
      * @return array
      */
-    public static function get_profile_sync_status_with_id_name(unified $apiclient = null) : array {
+    public static function get_profile_sync_status_with_id_name(?unified $apiclient = null): array {
         $profilesyncenabled = false;
         $schoolid = '';
         $schoolname = '';
@@ -95,6 +95,10 @@ class utils {
                     }
                 } catch (moodle_exception $e) {
                     // School invalid, reset settings.
+                    $existingsdsprofilesyncsetting = get_config('local_o365', 'sdsprofilesync');
+                    if ($existingsdsprofilesyncsetting) {
+                        add_to_config_log('sdsprofilesync', $existingsdsprofilesyncsetting, '', 'local_o365');
+                    }
                     set_config('sdsprofilesync', '', 'local_o365');
                 }
             }
@@ -108,7 +112,7 @@ class utils {
      *
      * @return array[]
      */
-    public static function get_sds_profile_sync_api_requirements() : array {
+    public static function get_sds_profile_sync_api_requirements(): array {
         $idandnamemappings = [];
         $additionalprofilemappings = [];
 

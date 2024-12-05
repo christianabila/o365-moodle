@@ -28,8 +28,6 @@ namespace local_o365\feature\calsync\task;
 use local_o365\utils;
 use moodle_exception;
 
-defined('MOODLE_INTERNAL') || die();
-
 /**
  * AdHoc task to sync existing Moodle calendar events with Microsoft 365.
  *
@@ -125,7 +123,7 @@ class syncoldevents extends \core\task\adhoc_task {
                                 $calsync->update_event_raw($event->eventuserid, $event->outlookeventid,
                                     ['attendees' => $subscribersprimary]);
                             } catch (moodle_exception $e) {
-                                // Do nothing.
+                                mtrace('ERROR: ' . $e->getMessage());
                             }
                         } else {
                             $calid = null;
@@ -146,7 +144,7 @@ class syncoldevents extends \core\task\adhoc_task {
                                     $subscribersprimary, [], $calid);
                         }
                     } catch (moodle_exception $e) {
-                        mtrace('ERROR: '.$e->getMessage());
+                        mtrace('ERROR: ' . $e->getMessage());
                     }
                 }
 
@@ -185,6 +183,10 @@ class syncoldevents extends \core\task\adhoc_task {
             }
         }
         $events->close();
+        $existingcalsitelastsyncsetting = get_config('local_o365', 'cal_site_lastsync');
+        if ($existingcalsitelastsyncsetting != $timestart) {
+            add_to_config_log('cal_site_lastsync', $existingcalsitelastsyncsetting, $timestart, 'local_o365');
+        }
         set_config('cal_site_lastsync', $timestart, 'local_o365');
         return true;
     }
@@ -265,6 +267,7 @@ class syncoldevents extends \core\task\adhoc_task {
                                     ['attendees' => $eventattendees]);
                             } catch (moodle_exception $e) {
                                 // Do nothing.
+                                mtrace('Error updating event #' . $event->eventid . ': ' . $e->getMessage());
                             }
                         } else {
                             $calid = null;
@@ -323,7 +326,7 @@ class syncoldevents extends \core\task\adhoc_task {
                 }
             } catch (moodle_exception $e) {
                 // Could not sync this course event. Log and continue.
-                mtrace('Error syncing course event #'.$event->eventid.': '.$e->getMessage());
+                mtrace('Error syncing course event #' . $event->eventid . ': ' . $e->getMessage());
             }
         }
         $events->close();
@@ -334,6 +337,10 @@ class syncoldevents extends \core\task\adhoc_task {
             $lastcoursesync = [$courseid => $timestart];
         }
         $lastcoursesync = serialize($lastcoursesync);
+        $existingcalcourselastsyncsetting = get_config('local_o365', 'cal_course_lastsync');
+        if ($existingcalcourselastsyncsetting != $lastcoursesync) {
+            add_to_config_log('cal_course_lastsync', $existingcalcourselastsyncsetting, $lastcoursesync, 'local_o365');
+        }
         set_config('cal_course_lastsync', $lastcoursesync, 'local_o365');
 
         return true;
@@ -436,6 +443,10 @@ class syncoldevents extends \core\task\adhoc_task {
             $lastusersync = [$userid => $timestart];
         }
         $lastusersync = serialize($lastusersync);
+        $existingcaluserlastsyncsetting = get_config('local_o365', 'cal_user_lastsync');
+        if ($existingcaluserlastsyncsetting != $lastusersync) {
+            add_to_config_log('cal_user_lastsync', $existingcaluserlastsyncsetting, $lastusersync, 'local_o365');
+        }
         set_config('cal_user_lastsync', $lastusersync, 'local_o365');
 
         return true;

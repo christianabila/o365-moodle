@@ -43,11 +43,6 @@ use stdClass;
  */
 class main {
     /**
-     * API error message for group not existing.
-     */
-    const GROUP_DOES_NOT_EXIST_ERROR = "does not exist or one of its queried reference-property objects are not present";
-
-    /**
      * @var unified Graph client instance.
      */
     private $graphclient;
@@ -63,9 +58,11 @@ class main {
     private $cohortlist;
 
     /**
+     * Return the list of groups.
+     *
      * @return array
      */
-    public function get_grouplist() : array {
+    public function get_grouplist(): array {
         if (is_null($this->grouplist)) {
             $this->fetch_groups_from_cache();
         }
@@ -74,9 +71,11 @@ class main {
     }
 
     /**
+     * Return the list of cohorts.
+     *
      * @return array
      */
-    public function get_cohortlist() : array {
+    public function get_cohortlist(): array {
         if (is_null($this->cohortlist)) {
             $this->fetch_cohorts();
         }
@@ -102,7 +101,7 @@ class main {
      * @param int $cohortid
      * @return bool
      */
-    public function add_mapping(string $groupoid, int $cohortid) : bool {
+    public function add_mapping(string $groupoid, int $cohortid): bool {
         global $DB;
 
         if (!$groupoid || !$cohortid) {
@@ -141,7 +140,7 @@ class main {
      *
      * @return array
      */
-    public function get_mappings() : array {
+    public function get_mappings(): array {
         global $DB;
 
         $mappings = $DB->get_records('local_o365_objects', ['type' => 'group', 'subtype' => 'cohort']);
@@ -156,7 +155,7 @@ class main {
      * @param int $cohortid
      * @return void
      */
-    public function delete_mapping_by_group_oid_and_cohort_id(string $groupoid, int $cohortid) : void {
+    public function delete_mapping_by_group_oid_and_cohort_id(string $groupoid, int $cohortid): void {
         global $DB;
 
         $params = ['objectid' => $groupoid, 'moodleid' => $cohortid];
@@ -169,7 +168,7 @@ class main {
      * @param int $id
      * @return void
      */
-    public function delete_mapping_by_id(int $id) : void {
+    public function delete_mapping_by_id(int $id): void {
         global $DB;
 
         $params = ['id' => $id];
@@ -182,10 +181,13 @@ class main {
      * This function populates the $this->grouplist with the groups fetched from
      * the local Moodle cache.
      */
-    public function fetch_groups_from_cache() : void {
+    public function fetch_groups_from_cache(): void {
         global $DB;
 
-        $records = $DB->get_records('local_o365_groups_cache');
+        $sql = 'SELECT *
+                  FROM {local_o365_groups_cache}
+                 WHERE not_found_since = 0';
+        $records = $DB->get_records_sql($sql);
 
         $this->grouplist = [];
         foreach ($records as $record) {
@@ -199,7 +201,7 @@ class main {
     /**
      * Fetch cohorts from the local Moodle cache.
      */
-    public function fetch_cohorts() : void {
+    public function fetch_cohorts(): void {
         $systemcontext = context_system::instance();
         $systemcohorts = cohort_get_cohorts($systemcontext->id, 0, 0);
         $this->cohortlist = $systemcohorts['cohorts'];
@@ -210,59 +212,19 @@ class main {
      *
      * @return bool
      */
-    public function update_groups_cache() : bool {
+    public function update_groups_cache(): bool {
         global $DB;
 
-        mtrace("... Start updating groups cache.");
+        if (utils::update_groups_cache($this->graphclient, 1)) {
+            $sql = 'SELECT *
+                      FROM {local_o365_groups_cache}
+                     WHERE not_found_since = 0';
+            $this->grouplist = $DB->get_records_sql($sql);
 
-        try {
-            $this->fetch_groups_from_microsoft();
-        } catch (moodle_exception $e) {
-            mtrace("...... Failed to fetch groups. Error: " . $e->getMessage());
-
+            return true;
+        } else {
             return false;
         }
-
-        $existingcacherecords = $DB->get_records('local_o365_groups_cache');
-        $existingcachebyoid = [];
-        foreach ($existingcacherecords as $existingcacherecord) {
-            $existingcachebyoid[$existingcacherecord->objectid] = $existingcacherecord;
-        }
-
-        foreach ($this->grouplist as $group) {
-            if (array_key_exists($group['id'], $existingcachebyoid)) {
-                $cacherecord = $existingcachebyoid[$group['id']];
-                $cacherecord->name = $group['displayName'];
-                $cacherecord->description = $group['description'];
-                $DB->update_record('local_o365_groups_cache', $cacherecord);
-                unset($existingcachebyoid[$group['id']]);
-            } else {
-                $cacherecord = new stdClass();
-                $cacherecord->objectid = $group['id'];
-                $cacherecord->name = $group['displayName'];
-                $cacherecord->description = $group['description'];
-                $DB->insert_record('local_o365_groups_cache', $cacherecord);
-                mtrace("...... Added group ID {$group['id']} to cache.");
-            }
-        }
-
-        foreach ($existingcachebyoid as $oldcacherecord) {
-            $DB->delete_records('local_o365_groups_cache', ['id' => $oldcacherecord->id]);
-            mtrace("...... Deleted group ID {$oldcacherecord->objectid} from cache.");
-        }
-
-        mtrace("... Finished updating groups cache.");
-
-        return true;
-    }
-
-    /**
-     * Fetch all Microsoft groups.
-     *
-     * @return void
-     */
-    public function fetch_groups_from_microsoft() : void {
-        $this->grouplist = $this->graphclient->get_groups();
     }
 
     /**
@@ -272,7 +234,7 @@ class main {
      * @param int $cohortid
      * @return void
      */
-    public function sync_members_by_group_oid_and_cohort_id(string $groupoid, int $cohortid) : void {
+    public function sync_members_by_group_oid_and_cohort_id(string $groupoid, int $cohortid): void {
         $groupownersandmembers = $this->get_group_owners_and_members($groupoid);
 
         if ($groupownersandmembers !== false) {
@@ -299,7 +261,7 @@ class main {
             $memberrecords = $this->graphclient->get_group_members($groupoid);
             $ownerrecords = $this->graphclient->get_group_owners($groupoid);
         } catch (moodle_exception $e) {
-            if (strpos($e->getMessage(), self::GROUP_DOES_NOT_EXIST_ERROR) !== false) {
+            if (strpos($e->getMessage(), utils::RESOURCE_NOT_EXIST_ERROR) !== false) {
                 $DB->delete_records('local_o365_objects', ['objectid' => $groupoid]);
                 mtrace("...... Deleted mapping for non-existing group ID $groupoid.");
             } else {
@@ -331,7 +293,7 @@ class main {
      * @return void
      */
     private function sync_cohort_members_by_cohort_id_and_microsoft_user_objects(int $cohortid,
-        array $microsoftuserobjects) : void {
+        array $microsoftuserobjects): void {
         global $DB;
 
         $microsoftuseroids = array_column($microsoftuserobjects, 'id');
@@ -364,7 +326,7 @@ class main {
      * @param array $moodleuserids
      * @return array
      */
-    private function get_all_potential_user_details(array $microsoftuseroids, array $moodleuserids) : array {
+    private function get_all_potential_user_details(array $microsoftuseroids, array $moodleuserids): array {
         global $DB;
 
         if (empty($microsoftuseroids) && empty($moodleuserids)) {
@@ -408,7 +370,7 @@ class main {
      * @param string $groupoid
      * @return string
      */
-    public function get_group_name_by_group_oid(string $groupoid) : string {
+    public function get_group_name_by_group_oid(string $groupoid): string {
         $groupname = '';
 
         foreach ($this->grouplist as $group) {
@@ -427,7 +389,7 @@ class main {
      * @param int $cohortid
      * @return string
      */
-    public function get_cohort_name_by_cohort_id(int $cohortid) : string {
+    public function get_cohort_name_by_cohort_id(int $cohortid): string {
         $cohortname = '';
 
         if (is_null($this->cohortlist)) {

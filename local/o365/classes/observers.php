@@ -81,7 +81,7 @@ class observers {
      * @param user_authed $event The triggered event.
      * @return bool Success/Failure.
      */
-    public static function handle_oidc_user_authed(user_authed $event) : bool {
+    public static function handle_oidc_user_authed(user_authed $event): bool {
         require_login();
         require_capability('moodle/site:config', context_system::instance());
 
@@ -98,6 +98,10 @@ class observers {
                     if (!empty($idtoken)) {
                         $tenant = utils::get_tenant_from_idtoken($idtoken);
                         if (!empty($tenant)) {
+                            $existingentratenantid = get_config('local_o365', 'entratenantid');
+                            if ($existingentratenantid != $tenant) {
+                                add_to_config_log('entratenantid', $existingentratenantid, $tenant, 'local_o365');
+                            }
                             set_config('entratenantid', $tenant, 'local_o365');
                         }
                     }
@@ -142,6 +146,7 @@ class observers {
                     }
                 } catch (moodle_exception $e) {
                     // Do nothing.
+                    $domainsfetched = false;
                 }
 
                 if (!$domainsfetched) {
@@ -168,7 +173,7 @@ class observers {
      * @param user_connected $event The triggered event.
      * @return bool Success/Failure.
      */
-    public static function handle_oidc_user_connected(user_connected $event) : bool {
+    public static function handle_oidc_user_connected(user_connected $event): bool {
         global $DB;
 
         if (utils::is_connected() !== true) {
@@ -192,6 +197,10 @@ class observers {
                         try {
                             $apiclient = utils::get_api();
                             $userdata = $apiclient->get_user($eventdata['other']['oidcuniqid'], $isguestuser);
+                            if (is_null($userdata)) {
+                                utils::debug('Failed to get user data using Graph API.', __METHOD__);
+                                return true;
+                            }
                         } catch (moodle_exception $e) {
                             utils::debug('Exception: '.$e->getMessage(), __METHOD__, $e);
                             return true;
@@ -261,7 +270,7 @@ class observers {
      * @param user_created $event The triggered event.
      * @return bool Success/Failure.
      */
-    public static function handle_user_created(user_created $event) : bool {
+    public static function handle_user_created(user_created $event): bool {
         global $DB;
 
         if (utils::is_connected() !== true) {
@@ -289,7 +298,7 @@ class observers {
      * @param user_disconnected $event The triggered event.
      * @return bool Success/Failure.
      */
-    public static function handle_oidc_user_disconnected(user_disconnected $event) : bool {
+    public static function handle_oidc_user_disconnected(user_disconnected $event): bool {
         global $DB;
 
         $eventdata = $event->get_data();
@@ -313,7 +322,7 @@ class observers {
      * @param user_loggedin $event The triggered event.
      * @return bool Success/Failure.
      */
-    public static function handle_oidc_user_loggedin(user_loggedin $event) : bool {
+    public static function handle_oidc_user_loggedin(user_loggedin $event): bool {
         if (utils::is_connected() !== true) {
             return false;
         }
@@ -333,7 +342,7 @@ class observers {
      * @param int $userid The ID of the user we want more information about.
      * @return bool Success/Failure.
      */
-    public static function get_additional_user_info(int $userid) : bool {
+    public static function get_additional_user_info(int $userid): bool {
         global $DB;
 
         try {
@@ -371,7 +380,7 @@ class observers {
                     'type' => 'user',
                     'subtype' => '',
                     'objectid' => $o365user->objectid,
-                    'o365name' => str_replace('#ext#', '#EXT#', $o365user->upn),
+                    'o365name' => str_replace('#ext#', '#EXT#', $o365user->useridentifier),
                     'moodleid' => $userid,
                     'tenant' => $tenant,
                     'metadata' => $metadata,
@@ -409,7 +418,7 @@ class observers {
      * @param user_enrolment_updated $event The triggered event.
      * @return bool Success/Failure.
      */
-    public static function handle_user_enrolment_updated(user_enrolment_updated $event) : bool {
+    public static function handle_user_enrolment_updated(user_enrolment_updated $event): bool {
         // Do nothing if sync direction is Teams to Moodle.
         $courseusersyncdirection = get_config('local_o365', 'courseusersyncdirection');
         if ($courseusersyncdirection == COURSE_USER_SYNC_DIRECTION_TEAMS_TO_MOODLE) {
@@ -434,7 +443,7 @@ class observers {
      * @param enrol_instance_updated $event
      * @return bool
      */
-    public static function handle_enrol_instance_updated(enrol_instance_updated $event) : bool {
+    public static function handle_enrol_instance_updated(enrol_instance_updated $event): bool {
         global $DB;
 
         // Do nothing if sync direction is Teams to Moodle.
@@ -497,16 +506,16 @@ class observers {
 
         $coursecreatedfromcustomcourserequest = false;
 
-        // Process course request approval
+        // Process course request approval.
         $courseid = $event->objectid;
         $course = get_course($courseid);
         $shortnametocheck = $course->shortname;
 
-        // First, try to get a record with an exact match on shortname
+        // First, try to get a record with an exact match on shortname.
         $customrequest = $DB->get_record('local_o365_course_request',
             ['courseshortname' => $shortnametocheck, 'requeststatus' => feature\courserequest\main::COURSE_REQUEST_STATUS_PENDING]);
 
-        // If no exact match, try removing the suffix _(number)
+        // If no exact match, try removing the suffix _(number).
         if (!$customrequest && preg_match('/^(.+)_(\d+)$/', $course->shortname, $matches)) {
             $shortnametocheck = $matches[1];
             $customrequest = $DB->get_record('local_o365_course_request', ['courseshortname' => $shortnametocheck,
@@ -543,7 +552,7 @@ class observers {
      *
      * @return bool
      */
-    public static function handle_course_restored(course_restored $event) : bool {
+    public static function handle_course_restored(course_restored $event): bool {
         if (utils::is_connected() !== true) {
             return false;
         }
@@ -572,7 +581,7 @@ class observers {
      * @param course_updated $event The triggered event.
      * @return bool Success/Failure.
      */
-    public static function handle_course_updated(course_updated $event) : bool {
+    public static function handle_course_updated(course_updated $event): bool {
         if (utils::is_connected() !== true) {
             return false;
         }
@@ -606,7 +615,7 @@ class observers {
      * @param course_deleted $event The triggered event.
      * @return bool Success/Failure.
      */
-    public static function handle_course_deleted(course_deleted $event) : bool {
+    public static function handle_course_deleted(course_deleted $event): bool {
         global $DB;
 
         if (utils::is_connected() !== true) {
@@ -639,7 +648,7 @@ class observers {
      * @param role_assigned $event The triggered event.
      * @return bool Success/Failure.
      */
-    public static function handle_role_assigned(role_assigned $event) : bool {
+    public static function handle_role_assigned(role_assigned $event): bool {
         // Do nothing if sync direction is Teams to Moodle.
         $courseusersyncdirection = get_config('local_o365', 'courseusersyncdirection');
         if ($courseusersyncdirection == COURSE_USER_SYNC_DIRECTION_TEAMS_TO_MOODLE) {
@@ -668,7 +677,7 @@ class observers {
      * @param role_unassigned $event The triggered event.
      * @return bool Success/Failure.
      */
-    public static function handle_role_unassigned(role_unassigned $event) : bool {
+    public static function handle_role_unassigned(role_unassigned $event): bool {
         // Do nothing if sync direction is Teams to Moodle.
         $courseusersyncdirection = get_config('local_o365', 'courseusersyncdirection');
         if ($courseusersyncdirection == COURSE_USER_SYNC_DIRECTION_TEAMS_TO_MOODLE) {
@@ -697,7 +706,7 @@ class observers {
      * @param capability_assigned|capability_unassigned $event
      * @return bool
      */
-    public static function handle_capability_change($event) {
+    public static function handle_capability_change($event): bool {
         $roleid = $event->objectid;
 
         // Resync owners and members in the groups connected to enabled Moodle courses.
@@ -726,7 +735,7 @@ class observers {
      * @param role_deleted $event The triggered event.
      * @return bool Success/Failure.
      */
-    public static function handle_role_deleted(role_deleted $event) : bool {
+    public static function handle_role_deleted(role_deleted $event): bool {
         if (utils::is_connected() !== true) {
             return false;
         }
@@ -749,7 +758,7 @@ class observers {
      * @param user_deleted $event The triggered event.
      * @return bool Success/Failure.
      */
-    public static function handle_user_deleted(user_deleted $event) : bool {
+    public static function handle_user_deleted(user_deleted $event): bool {
         global $DB;
         $userid = $event->objectid;
         $DB->delete_records('local_o365_token', ['user_id' => $userid]);
@@ -766,7 +775,7 @@ class observers {
      *
      * @return bool
      */
-    public static function handle_config_log_created(config_log_created $event) : bool {
+    public static function handle_config_log_created(config_log_created $event): bool {
         global $DB;
 
         $eventdata = $event->get_data();
@@ -835,7 +844,7 @@ class observers {
      *
      * @return bool
      */
-    public static function handle_cohort_deleted(cohort_deleted $event) : bool {
+    public static function handle_cohort_deleted(cohort_deleted $event): bool {
         global $DB;
 
         $cohortid = $event->objectid;

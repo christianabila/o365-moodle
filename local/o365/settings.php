@@ -86,8 +86,8 @@ if ($hassiteconfig) {
         $configdesc = new lang_string('settings_setup_step1clientcreds', 'local_o365', $oidcconfigpageurl->out());
         $settings->add(new admin_setting_heading('local_o365_setup_step1clientcreds', '', $configdesc));
 
-        $configdesc = new lang_string('settings_setup_step1_credentials_end', 'local_o365',
-            (object)['oidcsettings' => $oidcconfigpageurl->out()]);
+        $manualconfigurl = 'https://docs.moodle.org/' . get_config('core', 'branch') . '/en/Microsoft_365';
+        $configdesc = new lang_string('settings_setup_step1_credentials_end', 'local_o365', $manualconfigurl);
         $settings->add(new admin_setting_heading('local_o365_setup_step1_credentialsend', '', $configdesc));
 
         if (auth_oidc_is_setup_complete()) {
@@ -186,9 +186,9 @@ if ($hassiteconfig) {
             $label, $desc, ['h' => 2, 'm' => 30]));
 
         // Toggle to control whether to support upn change.
-        $label = new lang_string('settings_support_upn_change', 'local_o365');
-        $desc = new lang_string('settings_support_upn_change_desc', 'local_o365');
-        $settings->add(new admin_setting_configcheckbox('local_o365/support_upn_change', $label, $desc, '0'));
+        $label = new lang_string('settings_support_user_identifier_change', 'local_o365');
+        $desc = new lang_string('settings_support_user_identifier_change_desc', 'local_o365');
+        $settings->add(new admin_setting_configcheckbox('local_o365/support_user_identifier_change', $label, $desc, '0'));
 
         // Course sync section.
         $label = new lang_string('settings_secthead_coursesync', 'local_o365');
@@ -297,7 +297,7 @@ if ($hassiteconfig) {
             get_string('settings_team_name_sync_desc', 'local_o365'),
             0));
 
-        // Cohort Sync section
+        // Cohort Sync section.
         $label = new lang_string('settings_secthead_cohortsync', 'local_o365');
         $desc = new lang_string('settings_secthead_cohortsync_desc', 'local_o365');
         $settings->add(new admin_setting_heading('local_o365_section_cohortsync', $label, $desc));

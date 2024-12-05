@@ -25,8 +25,6 @@
 
 namespace local_o365\event;
 
-defined('MOODLE_INTERNAL') || die();
-
 /**
  * Event fired whenever a user subscribes to a calendar.
  */
@@ -51,15 +49,6 @@ class api_call_failed extends \core\event\base {
             $description .= ': ' . $this->data['other']['debugdata'];
         }
         return $description;
-    }
-
-    /**
-     * Return legacy data for add_to_log().
-     *
-     * @return array
-     */
-    protected function get_legacy_logdata() {
-        return array(SITEID, 'local_o365', 'error', 'index.php');
     }
 
     /**

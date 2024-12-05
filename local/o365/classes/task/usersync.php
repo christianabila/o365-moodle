@@ -31,8 +31,6 @@ use local_o365\feature\usersync\main;
 use local_o365\utils;
 use moodle_exception;
 
-defined('MOODLE_INTERNAL') || die();
-
 /**
  * Scheduled task to sync users with Microsoft Entra ID.
  */
@@ -68,6 +66,10 @@ class usersync extends scheduled_task {
     protected function store_token($name, $value) {
         if (empty($value)) {
             $value = '';
+        }
+        $existingtaskusersynclastsetting = get_config('local_o365', 'task_usersync_last' . $name);
+        if ($existingtaskusersynclastsetting != $value) {
+            add_to_config_log('task_usersync_last' . $name, $existingtaskusersynclastsetting, $value, 'local_o365');
         }
         set_config('task_usersync_last' . $name, $value, 'local_o365');
     }
@@ -174,14 +176,24 @@ class usersync extends scheduled_task {
                 if (!$suspensiontaskhour) {
                     $suspensiontaskhour = 0;
                 }
-                if(!$suspensiontaskminute) {
+                if (!$suspensiontaskminute) {
                     $suspensiontaskminute = 0;
                 }
                 $currenthour = date('H');
                 $currentminute = date('i');
                 if ($currenthour > $suspensiontaskhour) {
+                    $existingtaskusersynclastdeletesetting = get_config('local_o365', 'task_usersync_lastdelete');
+                    if ($existingtaskusersynclastdeletesetting != date('Ymd')) {
+                        add_to_config_log('task_usersync_lastdelete', $existingtaskusersynclastdeletesetting, date('Ymd'),
+                            'local_o365');
+                    }
                     set_config('task_usersync_lastdelete', date('Ymd'), 'local_o365');
                 } else if (($currenthour == $suspensiontaskhour) && ($currentminute >= $suspensiontaskminute)) {
+                    $existingtaskusersynclastdeletesetting = get_config('local_o365', 'task_usersync_lastdelete');
+                    if ($existingtaskusersynclastdeletesetting != date('Ymd')) {
+                        add_to_config_log('task_usersync_lastdelete', $existingtaskusersynclastdeletesetting, date('Ymd'),
+                            'local_o365');
+                    }
                     set_config('task_usersync_lastdelete', date('Ymd'), 'local_o365');
                 } else {
                     $rundelete = false;
@@ -236,10 +248,42 @@ class usersync extends scheduled_task {
      * @param array $users
      */
     protected function sync_users($usersync, $users) {
+        global $CFG;
+
+        require_once($CFG->dirroot . '/auth/oidc/lib.php');
+
         $chunk = array_chunk($users, 10000);
+
+        $bindingusernameclaim = auth_oidc_get_binding_username_claim();
+        switch ($bindingusernameclaim) {
+            case 'upn':
+                $this->mtrace('Binding username claim: userPrincipalName.');
+                $bindingusernameclaim = 'userPrincipalName';
+                break;
+            case 'oid':
+                $this->mtrace('Binding username claim: id.');
+                $bindingusernameclaim = 'id';
+                break;
+            case 'samaccountname':
+                $this->mtrace('Binding username claim: onPremisesSamAccountName.');
+                $bindingusernameclaim = 'onPremisesSamAccountName';
+                break;
+            case 'email':
+                $this->mtrace('Binding username claim: mail.');
+                $bindingusernameclaim = 'mail';
+                break;
+            case 'unique_name':
+            case 'sub':
+            case 'preferred_username':
+            default:
+                $this->mtrace('Unsupported binding username claim: ' . $bindingusernameclaim .
+                    '. Falls back to userPrincepalName.');
+                $bindingusernameclaim = 'userPrincipalName';
+        }
+
         foreach ($chunk as $u) {
             $this->mtrace(count($u) . ' users in chunk. Syncing...');
-            $usersync->sync_users($u);
+            $usersync->sync_users($u, $bindingusernameclaim);
         }
     }
 }

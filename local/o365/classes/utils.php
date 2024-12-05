@@ -35,6 +35,7 @@ use local_o365\oauth2\token;
 use local_o365\obj\o365user;
 use local_o365\rest\unified;
 use moodle_exception;
+use stdClass;
 
 defined('MOODLE_INTERNAL') || die();
 
@@ -44,6 +45,11 @@ require_once($CFG->dirroot . '/auth/oidc/lib.php');
  * General purpose utility class.
  */
 class utils {
+    /**
+     * @var string RESOURCE_NOT_EXIST_ERROR
+     */
+    const RESOURCE_NOT_EXIST_ERROR = 'does not exist or one of its queried reference-property objects are not present';
+
     /**
      * Determine whether essential configuration has been completed.
      *
@@ -73,7 +79,7 @@ class utils {
             $clientdata = clientdata::instance_from_oidc();
             $graphresource = unified::get_tokenresource();
             try {
-                $token = utils::get_application_token($graphresource, $clientdata, $httpclient);
+                $token = static::get_application_token($graphresource, $clientdata, $httpclient);
                 if ($token) {
                     return true;
                 }
@@ -155,7 +161,7 @@ class utils {
      *
      * @return bool Whether app-only access is active.
      */
-    public static function is_active_apponlyaccess() : bool {
+    public static function is_active_apponlyaccess(): bool {
         return static::is_configured_apponlyaccess() === true && unified::is_configured() === true;
     }
 
@@ -247,9 +253,9 @@ class utils {
                 $valinfo['errorcode'] = $val->errorcode;
                 $valinfo['module'] = $val->module;
             }
-            return print_r($valinfo, true);
+            return json_encode($valinfo, JSON_PRETTY_PRINT);
         } else {
-            return print_r($val, true);
+            return json_encode($val, JSON_PRETTY_PRINT);
         }
     }
 
@@ -284,7 +290,7 @@ class utils {
      * @return unified A constructed unified API client, or throw an error.
      * @throws moodle_exception
      */
-    public static function get_api(int $userid = null) {
+    public static function get_api(?int $userid = null) {
         $tokenresource = unified::get_tokenresource();
         $clientdata = clientdata::instance_from_oidc();
         $httpclient = new httpclient();
@@ -320,14 +326,24 @@ class utils {
         if (!array_key_exists($tenantid, $additionaltenants)) {
             $additionaltenants[$tenantid] = $tenantdomainnames;
         }
-        set_config('multitenants', json_encode($additionaltenants), 'local_o365');
+        $additionaltenantsencoded = json_encode($additionaltenants);
+        $existingmultitenantssetting = get_config('local_o365', 'multitenants');
+        if ($existingmultitenantssetting != $additionaltenantsencoded) {
+            add_to_config_log('multitenants', $existingmultitenantssetting, $additionaltenantsencoded, 'local_o365');
+        }
+        set_config('multitenants', $additionaltenantsencoded, 'local_o365');
 
         // Cleanup legacy multi tenants configurations.
         $configuredlegacytenants = get_config('local_o365', 'legacymultitenants');
+        $originalconfiguredlegacytenants = $configuredlegacytenants;
         if (!empty($configuredlegacytenants)) {
             $configuredlegacytenants = json_decode($configuredlegacytenants, true);
             if (is_array($configuredlegacytenants)) {
                 $configuredlegacytenants = array_diff($configuredlegacytenants, $tenantdomainnames);
+            }
+            if ($originalconfiguredlegacytenants != json_encode($configuredlegacytenants)) {
+                add_to_config_log('legacymultitenants', $originalconfiguredlegacytenants, json_encode($configuredlegacytenants),
+                    'local_o365');
             }
             set_config('legacymultitenants', json_encode($configuredlegacytenants), 'local_o365');
         }
@@ -345,6 +361,10 @@ class utils {
         $userrestrictions = array_merge($userrestrictions, $newrestrictions);
         $userrestrictions = array_unique($userrestrictions);
         $userrestrictions = implode("\n", $userrestrictions);
+        $existinguserrestrictionssetting = get_config('auth_oidc', 'userrestrictions');
+        if ($existinguserrestrictionssetting != $userrestrictions) {
+            add_to_config_log('userrestrictions', $existinguserrestrictionssetting, $userrestrictions, 'auth_oidc');
+        }
         set_config('userrestrictions', $userrestrictions, 'auth_oidc');
     }
 
@@ -387,9 +407,19 @@ class utils {
                         $additionaltenantdomains[$currenttenantid] = $currenttenantdomainnames;
                     }
                 }
+                $existinglegacymultitenantssetting = get_config('local_o365', 'legacymultitenants');
+                if ($existinglegacymultitenantssetting != json_encode($legacyadditionaltenantdomains)) {
+                    add_to_config_log('legacymultitenants', $existinglegacymultitenantssetting,
+                        json_encode($legacyadditionaltenantdomains), 'local_o365');
+                }
                 set_config('legacymultitenants', json_encode($legacyadditionaltenantdomains), 'local_o365');
             }
 
+            $existingmultitenantssetting = get_config('local_o365', 'multitenants');
+            if ($existingmultitenantssetting != json_encode($additionaltenantdomains)) {
+                add_to_config_log('multitenants', $existingmultitenantssetting, json_encode($additionaltenantdomains),
+                    'local_o365');
+            }
             set_config('multitenants', json_encode($additionaltenantdomains), 'local_o365');
         }
     }
@@ -414,27 +444,35 @@ class utils {
         if (array_key_exists($tenantid, $configuredtenants)) {
             $revokeddomains = $configuredtenants[$tenantid];
             unset($configuredtenants[$tenantid]);
+            $existingmultitenantssetting = get_config('local_o365', 'multitenants');
+            if ($existingmultitenantssetting != json_encode($configuredtenants)) {
+                add_to_config_log('multitenants', $existingmultitenantssetting, json_encode($configuredtenants), 'local_o365');
+            }
             set_config('multitenants', json_encode($configuredtenants), 'local_o365');
         }
 
         // Update restrictions.
         $userrestrictions = get_config('auth_oidc', 'userrestrictions');
+        $originaluserrestrictions = $userrestrictions;
         $userrestrictions = (!empty($userrestrictions)) ? explode("\n", $userrestrictions) : [];
         foreach ($revokeddomains as $revokeddomain) {
             $regex = '@' . str_replace('.', '\.', $revokeddomain) . '$';
             $userrestrictions = array_diff($userrestrictions, [$regex]);
         }
         $userrestrictions = implode("\n", $userrestrictions);
+        if ($originaluserrestrictions != $userrestrictions) {
+            add_to_config_log('userrestrictions', $originaluserrestrictions, $userrestrictions, 'auth_oidc');
+        }
         set_config('userrestrictions', $userrestrictions, 'auth_oidc');
     }
 
     /**
      * Delete an additional tenant from the legacy additional tenant settings.
      *
-     * @param $tenant
+     * @param string $tenant
      * @return bool|void
      */
-    public static function deletelegacyadditionaltenant($tenant) {
+    public static function deletelegacyadditionaltenant(string $tenant) {
         $o365config = get_config('local_o365');
         if (empty($o365config->legacymultitenants)) {
             return true;
@@ -444,6 +482,11 @@ class utils {
             $configuredlegacytenants = [];
         }
         $configuredlegacytenants = array_diff($configuredlegacytenants, [$tenant]);
+        $existinglegacymultitenantssetting = get_config('local_o365', 'legacymultitenants');
+        if ($existinglegacymultitenantssetting != json_encode($configuredlegacytenants)) {
+            add_to_config_log('legacymultitenants', $existinglegacymultitenantssetting, json_encode($configuredlegacytenants),
+                'local_o365');
+        }
         set_config('legacymultitenants', json_encode($configuredlegacytenants), 'local_o365');
     }
 
@@ -453,7 +496,7 @@ class utils {
      * @param int $userid The ID of the user.
      * @return string The tenant for the user. Empty string unless different from the host tenant.
      */
-    public static function get_tenant_for_user(int $userid) : string {
+    public static function get_tenant_for_user(int $userid): string {
         try {
             $clientdata = clientdata::instance_from_oidc();
             $httpclient = new httpclient();
@@ -466,7 +509,7 @@ class utils {
                 return ($tenant != get_config('local_o365', 'entratenant')) ? $tenant : '';
             }
         } catch (moodle_exception $e) {
-            // Do nothing.
+            return '';
         }
         return '';
     }
@@ -490,7 +533,7 @@ class utils {
                 return ($tenant != get_config('local_o365', 'odburl')) ? $tenant : '';
             }
         } catch (moodle_exception $e) {
-            // Do nothing.
+            return '';
         }
         return '';
     }
@@ -514,7 +557,7 @@ class utils {
      *
      * @return array
      */
-    public static function get_connected_users() : array {
+    public static function get_connected_users(): array {
         global $DB;
 
         $connectedusers = [];
@@ -525,5 +568,134 @@ class utils {
         }
 
         return $connectedusers;
+    }
+
+    /**
+     * Update Groups cache.
+     *
+     * @param unified $graphclient
+     * @param int $baselevel
+     * @return bool
+     */
+    public static function update_groups_cache(unified $graphclient, int $baselevel = 0): bool {
+        global $DB;
+
+        static::mtrace("Update groups cache.", $baselevel);
+
+        try {
+            $grouplist = $graphclient->get_groups();
+        } catch (moodle_exception $e) {
+            static::mtrace("Failed to fetch groups. Error: " . $e->getMessage(), $baselevel + 1);
+
+            return false;
+        }
+
+        $existingcacherecords = $DB->get_records('local_o365_groups_cache');
+        $existinggroupsbyoid = [];
+        $existingnotfoundgroupsbyoid = [];
+        foreach ($existingcacherecords as $existingcacherecord) {
+            if ($existingcacherecord->not_found_since) {
+                $existingnotfoundgroupsbyoid[$existingcacherecord->objectid] = $existingcacherecord;
+            } else {
+                $existinggroupsbyoid[$existingcacherecord->objectid] = $existingcacherecord;
+            }
+        }
+
+        foreach ($grouplist as $group) {
+            if (array_key_exists($group['id'], $existingnotfoundgroupsbyoid)) {
+                $cacherecord = $existingnotfoundgroupsbyoid[$group['id']];
+                $cacherecord->name = $group['displayName'];
+                $cacherecord->description = $group['description'];
+                $cacherecord->not_found_since = 0;
+                $DB->update_record('local_o365_groups_cache', $cacherecord);
+                unset($existingnotfoundgroupsbyoid[$group['id']]);
+                static::mtrace("Unset not found flag for group {$group['id']}.", $baselevel + 1);
+            } else if (array_key_exists($group['id'], $existinggroupsbyoid)) {
+                $cacherecord = $existinggroupsbyoid[$group['id']];
+                if ($cacherecord->name != $group['displayName'] || $cacherecord->description != $group['description']) {
+                    $cacherecord->name = $group['displayName'];
+                    $cacherecord->description = $group['description'];
+                    $DB->update_record('local_o365_groups_cache', $cacherecord);
+                    static::mtrace("Updated group ID {$group['id']} in cache.", $baselevel + 1);
+                } else {
+                    static::mtrace("Group ID {$group['id']} in cache is up to date.", $baselevel + 1);
+                }
+                unset($existinggroupsbyoid[$group['id']]);
+            } else {
+                $cacherecord = new stdClass();
+                $cacherecord->objectid = $group['id'];
+                $cacherecord->name = $group['displayName'];
+                $cacherecord->description = $group['description'];
+                $DB->insert_record('local_o365_groups_cache', $cacherecord);
+                static::mtrace("Added group ID {$group['id']} to cache.", $baselevel + 1);
+            }
+        }
+
+        foreach ($existinggroupsbyoid as $oldcacherecord) {
+            $oldcacherecord->not_found_since = time();
+            $DB->update_record('local_o365_groups_cache', $oldcacherecord);
+            static::mtrace("Marked group {$oldcacherecord->objectid} as not found in the cache.", $baselevel + 1);
+        }
+
+        static::mtrace("Finished updating groups cache.", $baselevel);
+        static::mtrace("", $baselevel);
+
+        return true;
+    }
+
+    /**
+     * Clean up non-existing groups from the database.
+     *
+     * @param int $baselevel
+     * @return void
+     */
+    public static function clean_up_not_found_groups(int $baselevel = 1): void {
+        global $DB;
+
+        static::mtrace('Clean up non-existing groups from database', $baselevel);
+
+        $cutofftime = strtotime('-5 minutes');
+        $sql = "SELECT *
+                  FROM {local_o365_groups_cache}
+                 WHERE not_found_since != 0
+                   AND not_found_since < :cutofftime";
+        $records = $DB->get_records_sql($sql, ['cutofftime' => $cutofftime]);
+
+        foreach ($records as $record) {
+            $DB->delete_records('local_o365_groups_cache', ['objectid' => $record->objectid]);
+            $DB->delete_records('local_o365_objects', ['objectid' => $record->objectid]);
+            $DB->delete_records('local_o365_teams_cache', ['objectid' => $record->objectid]);
+            static::mtrace('Deleted non-existing group ' . $record->objectid . ' from groups cache.', $baselevel + 1);
+        }
+
+        static::mtrace('Finished cleaning up non-existing groups from database.', $baselevel);
+        static::mtrace('', $baselevel);
+    }
+
+    /**
+     * Print a message to the debugging console.
+     *
+     * @param string $message
+     * @param int $level
+     * @param string $eol
+     * @return void
+     */
+    public static function mtrace(string $message, int $level = 0, string $eol = "\n"): void {
+        if ($level) {
+            $message = str_repeat('...', $level) . ' ' . $message;
+        }
+        mtrace($message, $eol);
+    }
+
+    /**
+     * Extract GUID from error message.
+     *
+     * @param string $errormessage
+     * @return string|null
+     */
+    public static function extract_guid_from_error_message(string $errormessage): ?string {
+        $pattern = '/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/';
+        preg_match($pattern, $errormessage, $matches);
+        return $matches[0] ?? null;
     }
 }

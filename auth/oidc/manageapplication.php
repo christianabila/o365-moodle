@@ -57,7 +57,8 @@ $form = new application(null, ['oidcconfig' => $oidcconfig]);
 $formdata = [];
 foreach (['idptype', 'clientid', 'clientauthmethod', 'clientsecret', 'clientprivatekey', 'clientcert',
     'clientcertsource', 'clientprivatekeyfile', 'clientcertfile', 'clientcertpassphrase',
-    'authendpoint', 'tokenendpoint', 'oidcresource', 'oidcscope', 'secretexpiryrecipients'] as $field) {
+    'authendpoint', 'tokenendpoint', 'oidcresource', 'oidcscope', 'secretexpiryrecipients',
+    'bindingusernameclaim', 'customclaimname'] as $field) {
     if (isset($oidcconfig->$field)) {
         $formdata[$field] = $oidcconfig->$field;
     }
@@ -105,8 +106,8 @@ if ($form->is_cancelled()) {
     foreach ($configstosave as $config) {
         $existingsetting = get_config('auth_oidc', $config);
         if ($fromform->$config != $existingsetting) {
-            set_config($config, $fromform->$config, 'auth_oidc');
             add_to_config_log($config, $existingsetting, $fromform->$config, 'auth_oidc');
+            set_config($config, $fromform->$config, 'auth_oidc');
             $settingschanged = true;
             if ($config != 'secretexpiryrecipients') {
                 $updateapplicationtokenrequired = true;
@@ -147,4 +148,3 @@ echo $OUTPUT->header();
 $form->display();
 
 echo $OUTPUT->footer();
-

@@ -26,6 +26,9 @@
 
 defined('MOODLE_INTERNAL') || die();
 
+// phpcs:disable moodle.Files.LangFilesOrdering.IncorrectOrder -- The strings are organised by features.
+// phpcs:disable moodle.Files.LangFilesOrdering.UnexpectedComment -- The strings are organised by features.
+
 $string['pluginname'] = 'Microsoft 365 Integration';
 
 // Settings - tabs.
@@ -45,7 +48,7 @@ $string['settings_setup_step1_desc'] = 'Register a new Azure App for your Micros
 <p style="margin-top:10px"><a href="https://aka.ms/MoodleTeamsPowerShellReadMe" target="_blank">Click here</a> to read instructions on running the script.</p>
 <p>When prompted, use the following link as the Moodle URL:</p><h5><b>{$a}</b></h5>';
 $string['settings_setup_step1clientcreds'] = '<br />Once the script is successfully executed, copy the Application ID and Secret returned by the script into the <a href="{$a}">OpenID Connect authentication plugin configuration page</a>.';
-$string['settings_setup_step1_credentials_end'] = 'If you are unable to set up the Azure app via PowerShell, <a href="https://aka.ms/MoodleTeamsManualSetup" target="_blank">click here</a> for manual setup instructions.';
+$string['settings_setup_step1_credentials_end'] = 'If you are unable to set up the Azure app via PowerShell, <a href="{$a}" target="_blank">click here</a> for manual setup instructions.';
 $string['settings_setup_step1_continue'] = '<b>Once you have entered your Application ID and Key, click "Save changes" at the bottom of the page to continue.</b><br /><br /><br /><br /><br />';
 $string['settings_setup_step1_existing_settings'] = '<h5>Existing settings</h5>';
 $string['settings_setup_step2'] = 'Step 2/2: Admin consent &amp; additional information';
@@ -142,19 +145,19 @@ $string['settings_addsync_tzsynconlogin'] = 'Sync Outlook timezone to Moodle on 
 $string['settings_usersync_guestsync'] = 'Sync guest users';
 $string['settings_suspend_delete_running_time'] = 'User suspension/deletion running time';
 $string['settings_suspend_delete_running_time_desc'] = 'If the option is enabled, suspension/delete feature of user sync function will run once a day, at the time configured in the Moodle instance default time zone.';
-$string['settings_support_upn_change'] = 'Support Microsoft account UPN change';
-$string['settings_support_upn_change_desc'] = 'If enabled, Moodle will try to react when the UPN of a Microsoft account that is connected to a Moodle account is changed.</br>
+$string['settings_support_user_identifier_change'] = 'Support Microsoft account binding username claim value change';
+$string['settings_support_user_identifier_change_desc'] = 'If enabled, Moodle will try to react when the binding username claim value, which is normally UPN, of a Microsoft account that is connected to a Moodle account is changed.</br>
 <table class="flexible table table-striped table-hover generaltable generalbox table-sm">
     <tr>
         <th>Case ID</th>
         <th>The user with the old username has logged in already? (token created)<br/>
-        <span class="support_upn_change_case_detail">Whether a token is saved in the auth_oidc_token table</span>
+        <span class="support_user_identifier_change_case_detail">Whether a token is saved in the auth_oidc_token table</span>
         </th>
         <th>First action after UPN rename<br/>
-        <span class="support_upn_change_case_detail">Either Login or User sync task run</span>
+        <span class="support_user_identifier_change_case_detail">Either Login or User sync task run</span>
         </th>
         <th>Has potential duplicate username<br/>
-        <span class="support_upn_change_case_detail">Whether renaming would cause a username conflicts in Moodle</span>
+        <span class="support_user_identifier_change_case_detail">Whether renaming would cause a username conflicts in Moodle</span>
         </th>
         <th>Expected behaviours</th>
     </tr>
@@ -167,7 +170,7 @@ $string['settings_support_upn_change_desc'] = 'If enabled, Moodle will try to re
             <ol>
                 <li>Rename the Moodle user.</li>
                 <li>auth_oidc_token updated with both new values for both "username" and "oidcusername" fields.</li>
-                <li>local_o365_objects user connection record "o365name" field updated to new value.</li>        
+                <li>local_o365_objects user connection record "o365name" field updated to new value.</li>
             </ol>
         </td>
     </tr>
@@ -180,7 +183,7 @@ $string['settings_support_upn_change_desc'] = 'If enabled, Moodle will try to re
             <ol>
                 <li>Rename the Moodle user.</li>
                 <li>local_o365_objects user connection record is updated.</li>
-                <li>auth_oidc_token updated.</li>        
+                <li>auth_oidc_token updated.</li>
             </ol>
         </td>
     </tr>
@@ -193,7 +196,7 @@ $string['settings_support_upn_change_desc'] = 'If enabled, Moodle will try to re
             <ol>
                 <li>Rename the Moodle user.</li>
                 <li>local_o365_objects user connection record is updated.</li>
-                <li>auth_oidc_token updated.</li>        
+                <li>auth_oidc_token updated.</li>
             </ol>
         </td>
     </tr>
@@ -205,7 +208,7 @@ $string['settings_support_upn_change_desc'] = 'If enabled, Moodle will try to re
         <td>
             <ol>
                 <li>Rename the Moodle user.</li>
-                <li>local_o365_objects user connection record is updated.</li>      
+                <li>local_o365_objects user connection record is updated.</li>
             </ol>
         </td>
     </tr>
@@ -1000,8 +1003,11 @@ $string['notification_days_days'] = '{$a} days';
 $string['notification_subject_invalid_secret'] = 'Action required: invalid Azure app secret found';
 $string['notification_content_invalid_secret'] = 'Dear site administrator,
 
-The Azure app secret used in your Moodle and Microsoft 365 integration seems to be invalid. This can either be caused by the secret expired, or it has been deleted.  
+The Azure app secret used in your Moodle and Microsoft 365 integration seems to be invalid. This can either be caused by the secret expired, or it has been deleted.
 Please review the secret to ensure the integration works as expected.';
 
 // Misc.
 $string['spsite_group_contributors_desc'] = 'All users who have access to manage files for course {$a}';
+
+// phpcs:enable moodle.Files.LangFilesOrdering.IncorrectOrder
+// phpcs:enable moodle.Files.LangFilesOrdering.UnexpectedComment

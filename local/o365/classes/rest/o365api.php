@@ -27,8 +27,6 @@ namespace local_o365\rest;
 
 use moodle_exception;
 
-defined('MOODLE_INTERNAL') || die();
-
 /**
  * Abstract base class for all o365 REST api classes.
  */
@@ -247,6 +245,10 @@ abstract class o365api {
             if ($this->httpclient->info['http_code'] == 429) {
                 // We are being throttled.
                 $ratelimitlevel++;
+                $existingratelimitsetting = get_config('local_o365', 'ratelimit');
+                if ($existingratelimitsetting != $ratelimitlevel . ':' . $ratelimittime) {
+                    add_to_config_log('ratelimit', $existingratelimitsetting, $ratelimitlevel . ':' . $ratelimittime, 'local_o365');
+                }
                 set_config('ratelimit', $ratelimitlevel . ':' . time(), 'local_o365');
 
                 return $this->apicall($origparam['httpmethod'], $origparam['apimethod'], $origparam['params'],
@@ -341,7 +343,7 @@ abstract class o365api {
         if ($tokenvalid !== true) {
             throw new moodle_exception('erroro365apiinvalidtoken', 'local_o365');
         }
-        $header = ['Authorization: Bearer ' . $this->token->get_token(),];
+        $header = ['Authorization: Bearer ' . $this->token->get_token()];
         $this->httpclient->resetheader();
         $this->httpclient->setheader($header);
         return $this->httpclient->get($url, '', $options);
