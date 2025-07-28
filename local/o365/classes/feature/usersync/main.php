@@ -68,7 +68,11 @@ class main {
      *
      * @throws moodle_exception
      */
-    public function __construct(?clientdata $clientdata = null, ?httpclient $httpclient = null) {
+    public function __construct(
+        ?clientdata $clientdata = null,
+        ?httpclient $httpclient = null,
+        protected unified $apiclient
+    ) {
         if (!PHPUNIT_TEST && !defined('BEHAT_SITE_RUNNING')) {
             $this->clientdata = (!empty($clientdata))
                 ? $clientdata
@@ -1714,7 +1718,7 @@ class main {
     public function suspend_users(array $entraidusers, bool $delete = false) {
         global $CFG, $DB;
 
-        $apiclient = $this->construct_user_api();
+        $apiclient = $this->apiclient;
 
         try {
             $deletedusersids = [];

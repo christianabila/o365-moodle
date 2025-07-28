@@ -344,4 +344,12 @@ final class usersync_test extends advanced_testcase {
         $this->assertEquals('Dev', $createduser->department);
         $this->assertEquals('en', $createduser->lang);
     }
+
+    /**
+     * @return void
+     * @covers \local_o365\task\usersync::execute
+     */
+    public function test_users_get_suspended(): void {
+
+    }
 }
