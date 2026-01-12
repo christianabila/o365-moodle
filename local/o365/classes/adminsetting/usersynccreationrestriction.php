@@ -25,16 +25,23 @@
 
 namespace local_o365\adminsetting;
 
+use admin_setting;
+
 defined('MOODLE_INTERNAL') || die();
 
 global $CFG;
 
-require_once($CFG->dirroot.'/lib/adminlib.php');
+require_once($CFG->dirroot . '/lib/adminlib.php');
 
 /**
  * Admin setting to control field mappings for users.
  */
-class usersynccreationrestriction extends \admin_setting {
+class usersynccreationrestriction extends admin_setting {
+    /**
+     * @var array $remotefields
+     * Array of remote fields that can be used for user creation restrictions.
+     */
+    private array $remotefields;
 
     /**
      * Constructor
@@ -45,8 +52,6 @@ class usersynccreationrestriction extends \admin_setting {
      * @param mixed $defaultsetting string or array depending on implementation
      */
     public function __construct($name, $visiblename, $description, $defaultsetting) {
-        global $DB;
-
         $this->remotefields = [
             'objectId' => get_string('settings_fieldmap_field_objectId', 'auth_oidc'),
             'userPrincipalName' => get_string('settings_fieldmap_field_userPrincipalName', 'auth_oidc'),
@@ -72,8 +77,11 @@ class usersynccreationrestriction extends \admin_setting {
         ];
         $order = 0;
         while ($order++ < 15) {
-            $this->remotefields['extensionAttribute' . $order] = get_string('settings_fieldmap_field_extensionattribute',
-                'auth_oidc', $order);
+            $this->remotefields['extensionAttribute' . $order] = get_string(
+                'settings_fieldmap_field_extensionattribute',
+                'auth_oidc',
+                $order
+            );
         }
 
         return parent::__construct($name, $visiblename, $description, $defaultsetting);
@@ -89,6 +97,7 @@ class usersynccreationrestriction extends \admin_setting {
         if (is_null($setting)) {
             $setting = '';
         }
+
         return unserialize($setting);
     }
 
@@ -130,6 +139,7 @@ class usersynccreationrestriction extends \admin_setting {
         if (empty($data) || !is_array($data)) {
             $data = [];
         }
+
         $remotefield = (isset($data['remotefield']) && isset($this->remotefields[$data['remotefield']])) ?
             $data['remotefield'] : '';
         $value = (isset($data['value'])) ? $data['value'] : '';
@@ -142,14 +152,19 @@ class usersynccreationrestriction extends \admin_setting {
             'style' => 'width: 350px;vertical-align: top;margin-right: 0.25rem;margin-top:0.25rem;',
             'onchange' => $onchange,
         ];
-        $html .= \html_writer::select($this->remotefields,
-            $this->get_full_name().'[remotefield]', $remotefield, ['' => 'choosedots'], $selectattrs);
+        $html .= \html_writer::select(
+            $this->remotefields,
+            $this->get_full_name() . '[remotefield]',
+            $remotefield,
+            ['' => 'choosedots'],
+            $selectattrs
+        );
 
         $inputdivattrs = ['style' => 'display:inline-block;margin-top:0.25rem;'];
         $html .= \html_writer::start_tag('div', $inputdivattrs);
         $inputattrs = [
             'type' => 'text',
-            'name' => $this->get_full_name().'[value]',
+            'name' => $this->get_full_name() . '[value]',
             'placeholder' => get_string('settings_usersynccreationrestriction_fieldval', 'local_o365'),
             'class' => 'form-control',
             'style' => 'width: 250px;display:inline-block;',
@@ -165,12 +180,13 @@ class usersynccreationrestriction extends \admin_setting {
         $inputattrs = [
             'type' => 'checkbox',
             'id' => 'usercreationrestriction_useregex',
-            'name' => $this->get_full_name().'[useregex]',
+            'name' => $this->get_full_name() . '[useregex]',
             'value' => '1',
         ];
         if ($useregex === true) {
             $inputattrs['checked'] = 'checked';
         }
+
         $html .= \html_writer::empty_tag('input', $inputattrs);
         $html .= ' ';
         $regexstr = get_string('settings_usersynccreationrestriction_regex', 'local_o365');

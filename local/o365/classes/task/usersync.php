@@ -67,10 +67,7 @@ class usersync extends scheduled_task {
         if (empty($value)) {
             $value = '';
         }
-        $existingtaskusersynclastsetting = get_config('local_o365', 'task_usersync_last' . $name);
-        if ($existingtaskusersynclastsetting != $value) {
-            add_to_config_log('task_usersync_last' . $name, $existingtaskusersynclastsetting, $value, 'local_o365');
-        }
+
         set_config('task_usersync_last' . $name, $value, 'local_o365');
     }
 
@@ -98,6 +95,7 @@ class usersync extends scheduled_task {
 
             return true;
         }
+
         $this->mtrace('Starting sync');
         raise_memory_limit(MEMORY_HUGE);
 
@@ -119,6 +117,7 @@ class usersync extends scheduled_task {
                 $this->mtrace('Error in full usersync: ' . $e->getMessage());
                 utils::debug($e->getMessage(), __METHOD__, $e);
             }
+
             $this->mtrace('Got response from Microsoft Entra ID');
         } else {
             $deltatoken = $this->get_token('deltatoken');
@@ -148,6 +147,7 @@ class usersync extends scheduled_task {
             } else {
                 $this->mtrace('Clearing deltatoken (none received)');
             }
+
             $this->store_token('deltatoken', $deltatoken);
         }
 
@@ -166,34 +166,28 @@ class usersync extends scheduled_task {
             if (strlen($lastrundate) == 10) {
                 $lastrundate = false;
             }
+
             if ($lastrundate && $lastrundate >= date('Ymd')) {
                 $alreadyruntoday = true;
                 $rundelete = false;
             }
+
             if (!$alreadyruntoday) {
                 $suspensiontaskhour = get_config('local_o365', 'usersync_suspension_h');
                 $suspensiontaskminute = get_config('local_o365', 'usersync_suspension_m');
                 if (!$suspensiontaskhour) {
                     $suspensiontaskhour = 0;
                 }
+
                 if (!$suspensiontaskminute) {
                     $suspensiontaskminute = 0;
                 }
+
                 $currenthour = date('H');
                 $currentminute = date('i');
                 if ($currenthour > $suspensiontaskhour) {
-                    $existingtaskusersynclastdeletesetting = get_config('local_o365', 'task_usersync_lastdelete');
-                    if ($existingtaskusersynclastdeletesetting != date('Ymd')) {
-                        add_to_config_log('task_usersync_lastdelete', $existingtaskusersynclastdeletesetting, date('Ymd'),
-                            'local_o365');
-                    }
                     set_config('task_usersync_lastdelete', date('Ymd'), 'local_o365');
                 } else if (($currenthour == $suspensiontaskhour) && ($currentminute >= $suspensiontaskminute)) {
-                    $existingtaskusersynclastdeletesetting = get_config('local_o365', 'task_usersync_lastdelete');
-                    if ($existingtaskusersynclastdeletesetting != date('Ymd')) {
-                        add_to_config_log('task_usersync_lastdelete', $existingtaskusersynclastdeletesetting, date('Ymd'),
-                            'local_o365');
-                    }
                     set_config('task_usersync_lastdelete', date('Ymd'), 'local_o365');
                 } else {
                     $rundelete = false;
@@ -206,6 +200,7 @@ class usersync extends scheduled_task {
                     $this->mtrace('Suspend/delete users feature skipped because it was run less than 1 day ago.');
                 }
             }
+
             if ($rundelete) {
                 $this->mtrace('Start suspend/delete users feature...');
                 if (main::sync_option_enabled('nodelta') !== true) {
@@ -228,6 +223,7 @@ class usersync extends scheduled_task {
                         $this->mtrace('Suspending deleted users...');
                         $usersync->suspend_users($users, main::sync_option_enabled('delete'));
                     }
+
                     if (main::sync_option_enabled('reenable')) {
                         $this->mtrace('Re-enabling suspended users...');
                         $usersync->reenable_suspsend_users($users, main::sync_option_enabled('disabledsync'));
@@ -272,12 +268,20 @@ class usersync extends scheduled_task {
                 $this->mtrace('Binding username claim: mail.');
                 $bindingusernameclaim = 'mail';
                 break;
+            case 'auto':
+                $this->mtrace('Binding username claim: auto-detected. Use userPrincipalName.');
+                $bindingusernameclaim = 'userPrincipalName';
+                break;
             case 'unique_name':
             case 'sub':
             case 'preferred_username':
+                $this->mtrace('Binding user claim "' . $bindingusernameclaim . '" is unavailable in Graph user resource. ' .
+                    'Fall back to userPrincipalName.');
+                $bindingusernameclaim = 'userPrincipalName';
+                break;
             default:
                 $this->mtrace('Unsupported binding username claim: ' . $bindingusernameclaim .
-                    '. Falls back to userPrincepalName.');
+                    '. Fall back to userPrincipalName.');
                 $bindingusernameclaim = 'userPrincipalName';
         }
 

@@ -25,16 +25,30 @@
 
 namespace local_o365\adminsetting;
 
+use admin_setting;
+
 defined('MOODLE_INTERNAL') || die();
 
 global $CFG;
 
-require_once($CFG->dirroot.'/lib/adminlib.php');
+require_once($CFG->dirroot . '/lib/adminlib.php');
 
 /**
  * Not a real setting - just a link to an admin tool.
  */
-class toollink extends \admin_setting {
+class toollink extends admin_setting {
+    /**
+     * @var string $linktext
+     * The text to display for the link.
+     */
+    private string $linktext;
+
+    /**
+     * @var string $linkurl
+     * The URL to the tool.
+     */
+    private string $linkurl;
+
     /**
      * Constructor.
      *

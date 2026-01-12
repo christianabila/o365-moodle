@@ -40,19 +40,19 @@ define('API_CALL_RETRY_LIMIT', 5);
  */
 class main {
     /**
-     * Course full name option.
+     * @var int Team/group name option - Course full name.
      */
     const NAME_OPTION_FULL_NAME = 1;
     /**
-     * Course short name option.
+     * @var int Team/group name option - Course short name.
      */
     const NAME_OPTION_SHORT_NAME = 2;
     /**
-     * Course ID option.
+     * @var int Team/group name option - Course ID.
      */
     const NAME_OPTION_ID = 3;
     /**
-     * Course ID number option.
+     * @var int Team/group name option - Course ID number.
      */
     const NAME_OPTION_ID_NUMBER = 4;
 
@@ -220,19 +220,28 @@ class main {
             if (strlen($description) > 1024) {
                 $description = shorten_text($description, 1024, true, ' ...');
             }
+
             while (mb_strlen($description, '8bit') > 1024) {
                 $description = mb_substr($description, 0, -5) . ' ...';
             }
         }
+
         $externalid = $course->id;
         $externalname = $course->fullname;
 
         try {
-            $response = $this->graphclient->create_educationclass_group($displayname, $mailnickname, $description, $externalid,
-                $externalname);
+            $response = $this->graphclient->create_educationclass_group(
+                $displayname,
+                $mailnickname,
+                $description,
+                $externalid,
+                $externalname
+            );
         } catch (moodle_exception $e) {
-            $this->mtrace('Could not create educationClass group for course #' . $course->id . '. Reason: ' . $e->getMessage(),
-                $baselevel + 1);
+            $this->mtrace(
+                'Could not create educationClass group for course #' . $course->id . '. Reason: ' . $e->getMessage(),
+                $baselevel + 1
+            );
             return false;
         }
 
@@ -272,6 +281,7 @@ class main {
             if ($retrycounter) {
                 $this->mtrace('Retry #' . $retrycounter, $baselevel + 1);
             }
+
             sleep(10);
 
             try {
@@ -279,8 +289,10 @@ class main {
                 $success = true;
                 break;
             } catch (moodle_exception $e) {
-                $this->mtrace('Error setting LMS attributes in group ' . $groupobjectid . '. Reason: ' . $e->getMessage(),
-                    $baselevel + 1);
+                $this->mtrace(
+                    'Error setting LMS attributes in group ' . $groupobjectid . '. Reason: ' . $e->getMessage(),
+                    $baselevel + 1
+                );
                 $retrycounter++;
             }
         }
@@ -316,6 +328,7 @@ class main {
             if (strlen($description) > 1024) {
                 $description = shorten_text($description, 1024, true, ' ...');
             }
+
             while (mb_strlen($description, '8bit') > 1024) {
                 $description = mb_substr($description, 0, -5) . ' ...';
             }
@@ -324,8 +337,10 @@ class main {
         try {
             $response = $this->graphclient->create_group($displayname, $mailnickname, ['description' => $description]);
         } catch (moodle_exception $e) {
-            $this->mtrace('Could not create standard group for course #' . $course->id . '. Reason: ' . $e->getMessage(),
-                $baselevel + 1);
+            $this->mtrace(
+                'Could not create standard group for course #' . $course->id . '. Reason: ' . $e->getMessage(),
+                $baselevel + 1
+            );
             return false;
         }
 
@@ -349,8 +364,12 @@ class main {
      * @param int $baselevel
      * @return bool whether at least one owner was added.
      */
-    private function add_group_owners_and_members_to_group(string $groupobjectid, array $owners, array $members,
-        int $baselevel = 3): bool {
+    private function add_group_owners_and_members_to_group(
+        string $groupobjectid,
+        array $owners,
+        array $members,
+        int $baselevel = 3
+    ): bool {
         global $SESSION;
         if (empty($owners) && empty($members)) {
             $this->mtrace('Skip adding owners / members to the group. Reason: No users to add.', $baselevel);
@@ -370,12 +389,15 @@ class main {
                     $skip = true;
                 }
             }
+
             if (!$skip) {
                 $existingowners = $this->get_group_owners($groupobjectid);
             }
         } catch (moodle_exception $e) {
-            $this->mtrace('Could not get existing owners of group with ID ' . $groupobjectid . '. Reason: ' . $e->getMessage(),
-                $baselevel + 1);
+            $this->mtrace(
+                'Could not get existing owners of group with ID ' . $groupobjectid . '. Reason: ' . $e->getMessage(),
+                $baselevel + 1
+            );
             $existingowners = [];
 
             if (isset($SESSION->o365_groups_not_exist) && isset($SESSION->o365_newly_created_groups)) {
@@ -385,6 +407,7 @@ class main {
                         if (!in_array($groupobjectid, $SESSION->o365_groups_not_exist)) {
                             $SESSION->o365_groups_not_exist[] = $groupobjectid;
                         }
+
                         $this->mtrace('Group does not exist. Skipping.', $baselevel + 1);
                     }
                 }
@@ -403,12 +426,15 @@ class main {
                     $skip = true;
                 }
             }
+
             if (!$skip) {
                 $existingmembers = $this->get_group_members($groupobjectid);
             }
         } catch (moodle_exception $e) {
-            $this->mtrace('Could not get existing members of group with ID ' . $groupobjectid . '. Reason: ' . $e->getMessage(),
-                $baselevel + 1);
+            $this->mtrace(
+                'Could not get existing members of group with ID ' . $groupobjectid . '. Reason: ' . $e->getMessage(),
+                $baselevel + 1
+            );
             $existingmembers = [];
 
             if (isset($SESSION->o365_groups_not_exist)) {
@@ -418,11 +444,13 @@ class main {
                         if (!in_array($groupobjectid, $SESSION->o365_groups_not_exist)) {
                             $SESSION->o365_groups_not_exist[] = $groupobjectid;
                         }
+
                         $this->mtrace('Group does not exist. Skipping.', $baselevel + 1);
                     }
                 }
             }
         }
+
         $existingownerids = array_keys($existingowners);
         $existingmemberids = array_keys($existingmembers);
         $owners = array_diff($owners, $existingownerids);
@@ -444,6 +472,7 @@ class main {
                     $this->mtrace('Retry #' . $retrycounter, $baselevel + 1);
                     sleep(10);
                 }
+
                 try {
                     $this->mtrace('Chunk ' . ($key + 1) . ', adding ' . count($users) . ' users as ' . $role, $baselevel + 1);
 
@@ -462,17 +491,21 @@ class main {
                     } else {
                         $this->mtrace('Invalid bulk group owners/members addition request', $baselevel + 2);
                     }
+
                     break;
                 } catch (moodle_exception $e) {
                     $this->mtrace('Error: ' . $e->getMessage(), $baselevel + 2);
-                    if (isset($SESSION->o365_groups_not_exist) && isset($SESSION->o365_newly_created_groups) &&
-                        isset($SESSION->o365_users_not_exist)) {
+                    if (
+                        isset($SESSION->o365_groups_not_exist) && isset($SESSION->o365_newly_created_groups) &&
+                        isset($SESSION->o365_users_not_exist)
+                    ) {
                         if (static::is_resource_not_exist_exception($e->getMessage())) {
                             if (stripos($e->getMessage(), $groupobjectid) !== false) {
                                 // The non-existing resource is the group.
                                 if (!in_array($groupobjectid, $SESSION->o365_groups_not_exist)) {
                                     $SESSION->o365_groups_not_exist[] = $groupobjectid;
                                 }
+
                                 $this->mtrace('Group does not exist. Skip retries.', $baselevel + 2);
                                 break;
                             } else {
@@ -484,10 +517,12 @@ class main {
                                 } else {
                                     $this->mtrace('User does not exist. Skip retries.', $baselevel + 2);
                                 }
+
                                 break;
                             }
                         }
                     }
+
                     $retrycounter++;
                 }
             }
@@ -514,18 +549,21 @@ class main {
      * @param int $baselevel
      * @return array|false
      */
-    private function create_class_team_from_education_group(string $groupobjectid, stdClass $course, int $baselevel = 3) {
+    private function create_team_from_education_group(string $groupobjectid, stdClass $course, int $baselevel = 3) {
         global $DB, $SESSION;
 
         $now = time();
 
         $retrycounter = 0;
 
-        $this->mtrace('Create class team from education group with ID ' . $groupobjectid . ' for course #' . $course->id,
-            $baselevel);
+        $this->mtrace(
+            'Create class team from education group with ID ' . $groupobjectid . ' for course #' . $course->id,
+            $baselevel
+        );
 
         $response = null;
         $subtype = '';
+
         while ($retrycounter <= API_CALL_RETRY_LIMIT) {
             if (isset($SESSION->o365_groups_not_exist)) {
                 if (in_array($groupobjectid, $SESSION->o365_groups_not_exist)) {
@@ -539,47 +577,63 @@ class main {
                 sleep(10);
             }
 
-            try {
-                $response = $this->graphclient->create_class_team_from_education_group($groupobjectid);
-                $this->mtrace('Created class team from class group with ID ' . $groupobjectid, $baselevel + 1);
-                $subtype = 'teamfromgroup';
-                break;
-            } catch (moodle_exception $e) {
-                if (strpos($e->a, 'The group is already provisioned') !== false) {
-                    $this->mtrace('Found existing team from class group with ID ' . $groupobjectid, $baselevel + 1);
-                    $response = true;
-                    $subtype = 'courseteam';
+            // Ensure the group has an owner.
+            if (!$this->graphclient->group_has_owner($groupobjectid)) {
+                $this->mtrace(
+                    'Group with ID ' . $groupobjectid . ' does not have an owner. Skip team creation.',
+                    $baselevel + 1
+                );
+                $retrycounter++;
+            } else {
+                try {
+                    $response = $this->graphclient->create_team_from_group($groupobjectid, 'educationClass');
+                    $this->mtrace('Created class team from class group with ID ' . $groupobjectid, $baselevel + 1);
+                    $subtype = 'teamfromgroup';
                     break;
-                } else {
-                    $this->mtrace('Could not create class team from education group. Reason: ' . $e->getMessage(), $baselevel + 1);
+                } catch (moodle_exception $e) {
+                    if (strpos($e->a, 'The group is already provisioned') !== false) {
+                        $this->mtrace('Found existing team from class group with ID ' . $groupobjectid, $baselevel + 1);
+                        $response = true;
+                        $subtype = 'courseteam';
+                        break;
+                    } else {
+                        $this->mtrace(
+                            'Could not create class team from education group. Reason: ' . $e->getMessage(),
+                            $baselevel + 1
+                        );
 
-                    if (isset($SESSION->o365_groups_not_exist) && isset($SESSION->o365_newly_created_groups) &&
-                        isset($SESSION->o365_users_not_exist)) {
-                        if (!in_array($groupobjectid, $SESSION->o365_groups_not_exist)) {
-                            if (static::is_resource_not_exist_exception($e->getMessage())) {
-                                if (stripos($e->getMessage(), $groupobjectid) !== false) {
-                                    // The non-existing resource is the group.
-                                    if (!in_array($groupobjectid, $SESSION->o365_groups_not_exist)) {
-                                        $SESSION->o365_groups_not_exist[] = $groupobjectid;
-                                    }
-                                    $this->mtrace('Group does not exist. Skip retries.', $baselevel + 2);
-                                    break;
-                                } else {
-                                    // The non-existing resource is a user.
-                                    $useroid = \local_o365\utils::extract_guid_from_error_message($e->getMessage());
-                                    if (!empty($useroid) && !in_array($useroid, $SESSION->o365_users_not_exist)) {
-                                        $SESSION->o365_users_not_exist[] = $useroid;
-                                        $this->mtrace('User ' . $useroid . ' does not exist. Skip retries.', $baselevel + 2);
+                        if (
+                            isset($SESSION->o365_groups_not_exist) && isset($SESSION->o365_newly_created_groups) &&
+                            isset($SESSION->o365_users_not_exist)
+                        ) {
+                            if (!in_array($groupobjectid, $SESSION->o365_groups_not_exist)) {
+                                if (static::is_resource_not_exist_exception($e->getMessage())) {
+                                    if (stripos($e->getMessage(), $groupobjectid) !== false) {
+                                        // The non-existing resource is the group.
+                                        if (!in_array($groupobjectid, $SESSION->o365_groups_not_exist)) {
+                                            $SESSION->o365_groups_not_exist[] = $groupobjectid;
+                                        }
+
+                                        $this->mtrace('Group does not exist. Skip retries.', $baselevel + 2);
+                                        break;
                                     } else {
-                                        $this->mtrace('User does not exist. Skip retries.', $baselevel + 2);
+                                        // The non-existing resource is a user.
+                                        $useroid = \local_o365\utils::extract_guid_from_error_message($e->getMessage());
+                                        if (!empty($useroid) && !in_array($useroid, $SESSION->o365_users_not_exist)) {
+                                            $SESSION->o365_users_not_exist[] = $useroid;
+                                            $this->mtrace('User ' . $useroid . ' does not exist. Skip retries.', $baselevel + 2);
+                                        } else {
+                                            $this->mtrace('User does not exist. Skip retries.', $baselevel + 2);
+                                        }
+
+                                        break;
                                     }
-                                    break;
                                 }
                             }
                         }
-                    }
 
-                    $retrycounter++;
+                        $retrycounter++;
+                    }
                 }
             }
         }
@@ -626,51 +680,67 @@ class main {
                 $this->mtrace('Retry #' . $retrycounter, $baselevel + 1);
                 sleep(10);
             }
-            try {
-                if (isset($SESSION->o365_groups_not_exist)) {
-                    if (in_array($groupobjectid, $SESSION->o365_groups_not_exist)) {
-                        $this->mtrace('Group does not exist. Skipping.', $baselevel + 1);
-                        break;
-                    }
-                }
-                $response = $this->graphclient->create_standard_team_from_group($groupobjectid);
-                break;
-            } catch (moodle_exception $e) {
-                $this->mtrace('Could not create standard team from group. Reason: '. $e->getMessage(), $baselevel + 1);
 
-                if (isset($SESSION->o365_groups_not_exist) && isset($SESSION->o365_newly_created_groups) &&
-                    isset($SESSION->o365_users_not_exist)) {
-                    if (!in_array($groupobjectid, $SESSION->o365_groups_not_exist)) {
-                        if (static::is_resource_not_exist_exception($e->getMessage())) {
-                            if (stripos($e->getMessage(), $groupobjectid) !== false) {
-                                // The non-existing resource is the group.
-                                if (!in_array($groupobjectid, $SESSION->o365_groups_not_exist)) {
-                                    $SESSION->o365_groups_not_exist[] = $groupobjectid;
-                                }
-                                $this->mtrace('Group does not exist. Skip retries.', $baselevel + 2);
-                                break;
-                            } else {
-                                // The non-existing resource is a user.
-                                $useroid = \local_o365\utils::extract_guid_from_error_message($e->getMessage());
-                                if (!empty($useroid) && !in_array($useroid, $SESSION->o365_users_not_exist)) {
-                                    $SESSION->o365_users_not_exist[] = $useroid;
-                                    $this->mtrace('User ' . $useroid . ' does not exist. Skip retries.', $baselevel + 2);
+            if (!$this->graphclient->group_has_owner($groupobjectid)) {
+                $this->mtrace(
+                    'Group with ID ' . $groupobjectid . ' does not have an owner. Skip team creation.',
+                    $baselevel + 1
+                );
+                $retrycounter++;
+            } else {
+                try {
+                    if (isset($SESSION->o365_groups_not_exist)) {
+                        if (in_array($groupobjectid, $SESSION->o365_groups_not_exist)) {
+                            $this->mtrace('Group does not exist. Skipping.', $baselevel + 1);
+                            break;
+                        }
+                    }
+
+                    $response = $this->graphclient->create_team_from_group($groupobjectid, 'standard');
+                    break;
+                } catch (moodle_exception $e) {
+                    $this->mtrace('Could not create standard team from group. Reason: ' . $e->getMessage(), $baselevel + 1);
+
+                    if (
+                        isset($SESSION->o365_groups_not_exist) && isset($SESSION->o365_newly_created_groups) &&
+                        isset($SESSION->o365_users_not_exist)
+                    ) {
+                        if (!in_array($groupobjectid, $SESSION->o365_groups_not_exist)) {
+                            if (static::is_resource_not_exist_exception($e->getMessage())) {
+                                if (stripos($e->getMessage(), $groupobjectid) !== false) {
+                                    // The non-existing resource is the group.
+                                    if (!in_array($groupobjectid, $SESSION->o365_groups_not_exist)) {
+                                        $SESSION->o365_groups_not_exist[] = $groupobjectid;
+                                    }
+
+                                    $this->mtrace('Group does not exist. Skip retries.', $baselevel + 2);
+                                    break;
                                 } else {
-                                    $this->mtrace('User does not exist. Skip retries.', $baselevel + 2);
+                                    // The non-existing resource is a user.
+                                    $useroid = \local_o365\utils::extract_guid_from_error_message($e->getMessage());
+                                    if (!empty($useroid) && !in_array($useroid, $SESSION->o365_users_not_exist)) {
+                                        $SESSION->o365_users_not_exist[] = $useroid;
+                                        $this->mtrace('User ' . $useroid . ' does not exist. Skip retries.', $baselevel + 2);
+                                    } else {
+                                        $this->mtrace('User does not exist. Skip retries.', $baselevel + 2);
+                                    }
+
+                                    break;
                                 }
-                                break;
                             }
                         }
                     }
-                }
 
-                $retrycounter++;
+                    $retrycounter++;
+                }
             }
         }
 
         if (!$response) {
-            $this->mtrace('Failed to create standard team from group with ID ' . $groupobjectid . ' for course #' . $course->id,
-                $baselevel + 1);
+            $this->mtrace(
+                'Failed to create standard team from group with ID ' . $groupobjectid . ' for course #' . $course->id,
+                $baselevel + 1
+            );
             return false;
         }
 
@@ -707,6 +777,7 @@ class main {
                 if ($retrycounter) {
                     $this->mtrace('Retry #' . $retrycounter, $baselevel + 1);
                 }
+
                 sleep(10);
 
                 try {
@@ -716,8 +787,10 @@ class main {
                         break;
                     }
                 } catch (moodle_exception $e) {
-                    $this->mtrace('Could not add app to team with object ID ' . $groupobjectid . '. Reason: ' . $e->getMessage(),
-                        $baselevel + 1);
+                    $this->mtrace(
+                        'Could not add app to team with object ID ' . $groupobjectid . '. Reason: ' . $e->getMessage(),
+                        $baselevel + 1
+                    );
                     $retrycounter++;
                 }
             }
@@ -737,8 +810,10 @@ class main {
                     // Add tab to channel.
                     try {
                         $this->add_moodle_tab_to_channel($groupobjectid, $generalchanelid, $moodleappid, $courseid, $baselevel + 1);
-                        $this->mtrace('Installed Moodle tab in the general channel of team with object ID ' . $groupobjectid,
-                            $baselevel + 1);
+                        $this->mtrace(
+                            'Installed Moodle tab in the general channel of team with object ID ' . $groupobjectid,
+                            $baselevel + 1
+                        );
                     } catch (moodle_exception $e) {
                         $this->mtrace('Could not add Moodle tab to channel in team with ID ' . $groupobjectid . '. Reason : ' .
                             $e->getMessage(), $baselevel + 1);
@@ -757,8 +832,12 @@ class main {
      * @param int $moodlecourseid
      * @return string
      */
-    private function add_moodle_tab_to_channel(string $groupobjectid, string $channelid, string $appid,
-        int $moodlecourseid): string {
+    private function add_moodle_tab_to_channel(
+        string $groupobjectid,
+        string $channelid,
+        string $appid,
+        int $moodlecourseid
+    ): string {
         global $CFG;
 
         $tabconfiguration = [
@@ -806,10 +885,12 @@ class main {
             $sql .= ' AND crs.id ' . $this->coursesinsql;
             $params = array_merge($params, $this->coursesparams);
         }
+
         $courselimit = get_config('local_o365', 'courses_per_task');
         if (!$courselimit) {
             $courselimit = 20;
         }
+
         $courses = $DB->get_recordset_sql($sql, $params);
 
         $coursesprocessed = 0;
@@ -829,6 +910,7 @@ class main {
         if ($coursesprocessed) {
             $this->mtrace('Created groups for ' . $coursesprocessed . ' courses.', $baselevel);
         }
+
         $this->mtrace('', $baselevel);
 
         $courses->close();
@@ -869,14 +951,18 @@ class main {
         // Add owners / members to the group.
         $ownerobjectids = utils::get_team_owner_object_ids_by_course_id($course->id);
         $memberobjectids = utils::get_team_member_object_ids_by_course_id($course->id, $ownerobjectids);
-        $owneradded = $this->add_group_owners_and_members_to_group($groupobject['objectid'], $ownerobjectids, $memberobjectids,
-            $baselevel + 1);
+        $owneradded = $this->add_group_owners_and_members_to_group(
+            $groupobject['objectid'],
+            $ownerobjectids,
+            $memberobjectids,
+            $baselevel + 1
+        );
 
         // If owner exists, create team.
         if ($owneradded) {
             // Owner exists, proceed with Team creation.
             if ($this->haseducationlicense) {
-                $this->create_class_team_from_education_group($groupobject['objectid'], $course, $baselevel + 1);
+                $this->create_team_from_education_group($groupobject['objectid'], $course, $baselevel + 1);
             } else {
                 $this->create_team_from_standard_group($groupobject['objectid'], $course, $baselevel + 1);
             }
@@ -916,6 +1002,7 @@ class main {
             $sql .= ' AND crs.id ' . $this->coursesinsql;
             $params = array_merge($params, $this->coursesparams);
         }
+
         $courses = $DB->get_recordset_sql($sql, $params);
 
         $coursesprocessed = 0;
@@ -943,6 +1030,7 @@ class main {
                 $owners = array_diff($owners, $SESSION->o365_users_not_exist);
                 $members = array_diff($members, $SESSION->o365_users_not_exist);
             }
+
             $ownerexists = false;
             foreach ($owners as $owner) {
                 try {
@@ -973,7 +1061,7 @@ class main {
                 // Resync group owners and members, just in case.
                 $this->add_group_owners_and_members_to_group($course->groupobjectid, $owners, $members);
                 if ($this->haseducationlicense) {
-                    if ($this->create_class_team_from_education_group($course->groupobjectid, $course)) {
+                    if ($this->create_team_from_education_group($course->groupobjectid, $course)) {
                         $coursesprocessed++;
                     }
                 } else {
@@ -1012,7 +1100,7 @@ class main {
             if (!empty($deletedgroup) && isset($deletedgroup['id']) && $deletedgroup['id'] == $objectid) {
                 // Deleted group found.
                 $this->graphclient->restore_deleted_group($objectid);
-                $updatedobjectrec = new stdClass;
+                $updatedobjectrec = new stdClass();
                 $updatedobjectrec->id = $objectrecid;
                 unset($objectrecmetadata['softdelete']);
                 $updatedobjectrec->metadata = json_encode($objectrecmetadata);
@@ -1052,15 +1140,28 @@ class main {
         }
 
         // Fetch teams from Graph API.
-        $teams = $this->graphclient->get_teams();
+        try {
+            $teams = $this->graphclient->get_teams();
+            if ($teams === null || !is_array($teams)) {
+                $this->mtrace('Failed to fetch teams from Graph API', 1);
+                return false;
+            }
+        } catch (moodle_exception $e) {
+            $this->mtrace('Error fetching teams: ' . $e->getMessage(), 1);
+            utils::debug('Exception in get_teams: ' . $e->getMessage(), __METHOD__, $e);
+            return false;
+        }
 
         // Build existing teams records cache.
         $this->mtrace('Building existing teams cache records', 1);
-        $existingcacherecords = $DB->get_records('local_o365_teams_cache');
+        // Use recordset instead of get_records to reduce memory usage.
+        $existingcacherecordset = $DB->get_recordset('local_o365_teams_cache');
         $existingcachebyoid = [];
-        foreach ($existingcacherecords as $existingcacherecord) {
+        foreach ($existingcacherecordset as $existingcacherecord) {
             $existingcachebyoid[$existingcacherecord->objectid] = $existingcacherecord;
         }
+
+        $existingcacherecordset->close();
 
         // Compare, then create, update, or delete cache.
         $this->mtrace('Updating teams cache records', 1);
@@ -1103,6 +1204,7 @@ class main {
                 $DB->insert_record('local_o365_teams_cache', $cacherecord);
             }
         }
+
         $this->mtrace('Deleting old teams cache records', 1);
         foreach ($existingcachebyoid as $oldcacherecord) {
             $DB->delete_records('local_o365_teams_cache', ['id' => $oldcacherecord->id]);
@@ -1112,9 +1214,7 @@ class main {
         $this->mtrace('');
 
         // Set last updated timestamp.
-        $existingteamscahceupdatedsetting = get_config('local_o365', 'teamscacheupdated');
         $timeupdated = time();
-        add_to_config_log('teamscacheupdated', $existingteamscahceupdatedsetting, $timeupdated, 'local_o365');
         set_config('teamscacheupdated', $timeupdated, 'local_o365');
 
         return true;
@@ -1138,18 +1238,27 @@ class main {
             [$teamobjectidsql, $params] = $DB->get_in_or_equal($teamobjectids, SQL_PARAMS_QM, 'param', false);
 
             if (count($params) < 65535) {
-                $DB->delete_records_select('local_o365_objects',
-                    "type = 'group' AND subtype IN ('courseteam', 'teamfromgroup') AND objectid {$teamobjectidsql}", $params);
+                $DB->delete_records_select(
+                    'local_o365_objects',
+                    "type = 'group' AND subtype IN ('courseteam', 'teamfromgroup') AND objectid {$teamobjectidsql}",
+                    $params
+                );
             } else {
                 // PostgreSQL can't handle more than 65535 parameters in a query. Special care is needed.
-                $groupobjectids = $DB->get_records_select_menu('local_o365_objects',
-                    "type = 'group' AND subtype IN ('courseteam', 'teamfromgroup')", [], '', 'objectid, id');
+                $groupobjectids = $DB->get_records_select_menu(
+                    'local_o365_objects',
+                    "type = 'group' AND subtype IN ('courseteam', 'teamfromgroup')",
+                    [],
+                    '',
+                    'objectid, id'
+                );
                 $objectrecordidstodelete = [];
                 foreach ($groupobjectids as $objectid => $objectrecordid) {
                     if (!in_array($objectid, $teamobjectids)) {
                         $objectrecordidstodelete[] = $objectrecordid;
                     }
                 }
+
                 if ($objectrecordidstodelete) {
                     $objectrecordidstodeletechunk = array_chunk($objectrecordidstodelete, 10000);
                     foreach ($objectrecordidstodeletechunk as $objectrecordidstodelete) {
@@ -1162,6 +1271,7 @@ class main {
             // If there are no records in teams cache, delete all teams connection records.
             $DB->delete_records_select('local_o365_objects', "type = 'group' AND subtype IN ('courseteam', 'teamfromgroup')");
         }
+
         $this->mtrace('Finished cleaning up teams connection records.');
         $this->mtrace('');
     }
@@ -1190,6 +1300,7 @@ class main {
             if (!isset($courseconnectioncache[$courseconnectionrecord->moodleid])) {
                 $courseconnectioncache[$courseconnectionrecord->moodleid] = [];
             }
+
             if (!in_array($courseconnectionrecord->subtype, $courseconnectioncache[$courseconnectionrecord->moodleid])) {
                 $courseconnectioncache[$courseconnectionrecord->moodleid][] = $courseconnectionrecord->subtype;
             } else {
@@ -1261,8 +1372,12 @@ class main {
      * @param bool $createafterreset
      * @return bool
      */
-    public function process_course_reset(stdClass $course, stdClass $o365object, bool $teamexists = false,
-        bool $createafterreset = true): bool {
+    public function process_course_reset(
+        stdClass $course,
+        stdClass $o365object,
+        bool $teamexists = false,
+        bool $createafterreset = true
+    ): bool {
         global $DB;
 
         // Rename existing group.
@@ -1274,10 +1389,12 @@ class main {
                 if ($resetgroupnameprefix === false) {
                     $resetgroupnameprefix = 'disconnected-';
                 }
+
                 $updatedmailnickname = $resetgroupnameprefix . utils::get_group_mail_alias($course);
                 if (strlen($updatedmailnickname) > 59) {
                     $updatedmailnickname = substr($updatedmailnickname, 0, 59);
                 }
+
                 $updatedexistinggroup = [
                     'id' => $existinggroup['id'],
                     'mailNickname' => $updatedmailnickname,
@@ -1297,6 +1414,7 @@ class main {
                 if ($resetteamnameprefix === false) {
                     $resetteamnameprefix = '(archived) ';
                 }
+
                 $existingteamname = utils::get_team_display_name($course, $resetteamnameprefix);
                 $this->graphclient->update_team_name($o365object->objectid, $existingteamname);
             } catch (moodle_exception $e) {
@@ -1315,8 +1433,11 @@ class main {
         }
 
         // Disconnect the Team from the course.
-        $DB->delete_records_select('local_o365_objects',
-            "type = 'group' AND subtype IN ('course', 'courseteam', 'teamfromgroup') AND moodleid = ?", [$course->id]);
+        $DB->delete_records_select(
+            'local_o365_objects',
+            "type = 'group' AND subtype IN ('course', 'courseteam', 'teamfromgroup') AND moodleid = ?",
+            [$course->id]
+        );
 
         // Create a new group / team and connect it to the course.
         if ($createafterreset) {
@@ -1347,7 +1468,7 @@ class main {
             if ($owneradded) {
                 // Owner exists, proceed with Team creation.
                 if ($this->haseducationlicense) {
-                    $this->create_class_team_from_education_group($groupobject['objectid'], $course);
+                    $this->create_team_from_education_group($groupobject['objectid'], $course);
                 } else {
                     $this->create_team_from_standard_group($groupobject['objectid'], $course);
                 }
@@ -1382,6 +1503,7 @@ class main {
                 $this->mtrace('No Team is connected to the course. Skipping.', 2);
                 return false;
             }
+
             $groupobjectid = reset($teamobjectids);
         }
 
@@ -1439,6 +1561,7 @@ class main {
                     $this->mtrace('Retry #' . $retrycounter, 2);
                     sleep(10);
                 }
+
                 $result = $this->graphclient->get_group($groupobjectid);
                 if (!empty($result['id'])) {
                     $this->mtrace('Group found.', 2);
@@ -1472,6 +1595,7 @@ class main {
                 unset($toremovemembers[$key]);
             }
         }
+
         $this->mtrace('Members to remove: ' . count($toremovemembers), 1);
         foreach ($toremovemembers as $userobjectid) {
             $this->mtrace('Removing ' . $userobjectid, 2);
@@ -1564,7 +1688,6 @@ class main {
                     } catch (moodle_exception $e) {
                         $lockstatus = TEAM_UNLOCKED;
                     }
-
                     break;
                 case TEAM_LOCKED:
                     try {
@@ -1575,7 +1698,6 @@ class main {
                     } catch (moodle_exception $e) {
                         $lockstatus = TEAM_UNLOCKED;
                     }
-
                     break;
                 case TEAM_UNLOCKED:
                     $lockstatus = TEAM_UNLOCKED;
@@ -1662,10 +1784,13 @@ class main {
                     // Do nothing.
                     $removed = false;
                 }
+
                 if ($aaduserconversationmemberid) {
                     try {
-                        $this->graphclient->remove_owner_and_member_from_group_using_teams_api($groupobjectid,
-                            $aaduserconversationmemberid);
+                        $this->graphclient->remove_owner_and_member_from_group_using_teams_api(
+                            $groupobjectid,
+                            $aaduserconversationmemberid
+                        );
                         $removed = true;
                     } catch (moodle_exception $e) {
                         // Do nothing.
@@ -1674,6 +1799,7 @@ class main {
                 }
             }
         }
+
         if (!$removed) {
             $this->graphclient->remove_member_from_group_using_group_api($groupobjectid, $userobjectid);
         }
@@ -1697,10 +1823,13 @@ class main {
                 // Do nothing.
                 $removed = false;
             }
+
             if ($aaduserconversationmemberid) {
                 try {
-                    $this->graphclient->remove_owner_and_member_from_group_using_teams_api($groupobjectid,
-                        $aaduserconversationmemberid);
+                    $this->graphclient->remove_owner_and_member_from_group_using_teams_api(
+                        $groupobjectid,
+                        $aaduserconversationmemberid
+                    );
                     $removed = true;
                 } catch (moodle_exception $e) {
                     // Do nothing.
@@ -1708,6 +1837,7 @@ class main {
                 }
             }
         }
+
         if (!$removed) {
             $this->graphclient->remove_member_from_group_using_group_api($groupobjectid, $userobjectid);
             $this->graphclient->remove_owner_from_group_using_group_api($groupobjectid, $userobjectid);
@@ -1722,8 +1852,11 @@ class main {
      * @param array|null $connectedusers An array of Moodle user IDs as keys and Microsoft 365 user object IDs as values.
      * @return bool
      */
-    public function process_course_team_user_sync_from_microsoft_to_moodle(int $courseid, string $groupobjectid = '',
-        ?array $connectedusers = null): bool {
+    public function process_course_team_user_sync_from_microsoft_to_moodle(
+        int $courseid,
+        string $groupobjectid = '',
+        ?array $connectedusers = null
+    ): bool {
         global $DB;
 
         $coursecontext = context_course::instance($courseid, IGNORE_MISSING);
@@ -1739,6 +1872,7 @@ class main {
         } else {
             $moodletomicrosoftusermappings = $connectedusers;
         }
+
         $microsofttomoodleusermappings = array_flip($moodletomicrosoftusermappings);
 
         if (!$groupobjectid) {
@@ -1752,6 +1886,7 @@ class main {
                 $this->mtrace('No Team is connected to the course. Skipping.', 2);
                 return false;
             }
+
             $groupobjectid = reset($teamobjectids);
         }
 
@@ -1783,6 +1918,7 @@ class main {
                 $connectedgroupmembers[$microsofttomoodleusermappings[$objectid]] = $value;
             }
         }
+
         $connectedintendedcoursestudents = array_keys($connectedgroupmembers);
 
         // Get Moodle IDs of connected group owners.
@@ -1792,6 +1928,7 @@ class main {
                 $connectedgroupowners[$microsofttomoodleusermappings[$objectid]] = $value;
             }
         }
+
         $connectedintendedcourseteachers = array_keys($connectedgroupowners);
 
         // Remove owners from members list.
@@ -1804,13 +1941,19 @@ class main {
         // Get Moodle IDs of connected course teachers.
         $courseenrolleduserids = array_keys(get_enrolled_users($coursecontext));
         $courseteacherids = array_keys(get_role_users($ownerroleid, $coursecontext));
-        $connectedcurrentcourseteachers = array_intersect($courseenrolleduserids, $courseteacherids,
-            array_keys($moodletomicrosoftusermappings));
+        $connectedcurrentcourseteachers = array_intersect(
+            $courseenrolleduserids,
+            $courseteacherids,
+            array_keys($moodletomicrosoftusermappings)
+        );
 
         // Get Moodle IDs of connected course students.
         $coursestudentids = array_keys(get_role_users($memberroleid, $coursecontext));
-        $connectedcurrentcoursestudents = array_intersect($courseenrolleduserids, $coursestudentids,
-            array_keys($moodletomicrosoftusermappings));
+        $connectedcurrentcoursestudents = array_intersect(
+            $courseenrolleduserids,
+            $coursestudentids,
+            array_keys($moodletomicrosoftusermappings)
+        );
 
         // Sync teachers.
         // - $connectedcurrentcourseteachers contains the current teachers in the course.
@@ -1829,8 +1972,12 @@ class main {
         if ($teacherstounenrol) {
             $this->mtrace('Removing teacher role from ' . count($teacherstounenrol) . ' users...', 2);
             foreach ($teacherstounenrol as $userid) {
-                $this->unassign_role_by_user_id_role_id_and_course_context($userid, $ownerroleid, $coursecontext,
-                    in_array($userid, $connectedintendedcoursestudents));
+                $this->unassign_role_by_user_id_role_id_and_course_context(
+                    $userid,
+                    $ownerroleid,
+                    $coursecontext,
+                    in_array($userid, $connectedintendedcoursestudents)
+                );
             }
         } else {
             $this->mtrace('No user to have teacher role removed.', 2);
@@ -1853,8 +2000,12 @@ class main {
         if ($studentstounenrol) {
             $this->mtrace('Removing student role from ' . count($studentstounenrol) . ' users...', 2);
             foreach ($studentstounenrol as $userid) {
-                $this->unassign_role_by_user_id_role_id_and_course_context($userid, $memberroleid, $coursecontext,
-                    in_array($userid, $connectedintendedcourseteachers));
+                $this->unassign_role_by_user_id_role_id_and_course_context(
+                    $userid,
+                    $memberroleid,
+                    $coursecontext,
+                    in_array($userid, $connectedintendedcourseteachers)
+                );
             }
         } else {
             $this->mtrace('No user to have student role removed.', 2);
@@ -1884,8 +2035,12 @@ class main {
      * @param context_course $context The context of the course.
      * @param bool $hasotherrole Whether the user has other role.
      */
-    private function unassign_role_by_user_id_role_id_and_course_context(int $userid, int $roleid, context_course $context,
-        bool $hasotherrole): void {
+    private function unassign_role_by_user_id_role_id_and_course_context(
+        int $userid,
+        int $roleid,
+        context_course $context,
+        bool $hasotherrole
+    ): void {
         role_unassign($roleid, $userid, $context->id);
         $this->mtrace('Removed role #' . $roleid . ' from user #' . $userid . '.', 3);
 
@@ -1971,6 +2126,7 @@ class main {
                 $connectedgroupowners[$microsofttomoodleusermappings[$objectid]] = $value;
             }
         }
+
         $connectedintendedcourseteachers = array_keys($connectedgroupowners);
 
         // Get Moodle IDs of connected group members.
@@ -1980,6 +2136,7 @@ class main {
                 $connectedgroupmembers[$microsofttomoodleusermappings[$objectid]] = $value;
             }
         }
+
         $connectedintendedcoursestudents = array_keys($connectedgroupmembers);
 
         // Remove owners from members list.
@@ -2040,10 +2197,12 @@ class main {
         foreach ($ownerstoadd as $owneruid) {
             $owneroids[] = $moodletomicrosoftusermappings[$owneruid];
         }
+
         $memberoids = [];
         foreach ($memberstoadd as $memberuid) {
             $memberoids[] = $moodletomicrosoftusermappings[$memberuid];
         }
+
         $this->mtrace('Add ' . count($owneroids) . ' owners and ' . count($memberoids) . ' members in bulk', 2);
         $this->add_group_owners_and_members_to_group($groupobjectid, $owneroids, $memberoids);
     }
