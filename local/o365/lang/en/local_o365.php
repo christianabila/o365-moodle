@@ -292,6 +292,9 @@ $string['settings_coursesync_details'] = 'If enabled, this will create and maint
 $string['acp_coursesynccustom_off'] = 'Disabled<br />Disable Teams creation for all courses.';
 $string['acp_coursesynccustom_oncustom'] = 'Customize<br />Allows authorized users to select which courses to create Teams for.<br> <span id="adminsetting_coursesync" style="font-weight: bold"><a href="{$a}">Customize course sync</a></span>';
 $string['acp_coursesynccustom_onall'] = 'All Features Enabled<br />Enables Teams creation for all courses.';
+$string['settings_coursesync_sync_hidden_courses'] = 'Sync hidden courses';
+$string['settings_coursesync_sync_hidden_courses_desc'] = 'By default, the plugin ignores hidden courses to prevent syncing courses that are being copied or restored. Enable this setting to force the creation of Teams for hidden courses.';
+$string['acp_coursesync_hidden_course_note'] = 'Note: Hidden courses will not be processed for Teams group creation. To allow this, you must enable the "Sync hidden courses" setting in the plugin configuration.';
 $string['settings_coursesync_delete_group_on_course_deletion'] = 'Delete Microsoft 365 groups when connected Moodle course is deleted';
 $string['settings_coursesync_delete_group_on_course_deletion_details'] = 'If enabled, Moodle will try to delete the Microsoft 365 Group (and associated Team) when the connected course is deleted from Moodle. Note this does not apply to courses created from SDS sync.';
 $string['settings_coursesync_delete_group_on_course_sync_disabled'] = 'Delete Microsoft 365 Groups when course sync is disabled';
@@ -620,33 +623,50 @@ $string['settings_sds_intro'] = '';
 $string['settings_sds_intro_previewwarning'] = '<div class="alert"><b>This is a preview feature</b><br />Preview features may not work as intended or may break without warning. Please proceed with caution.</div>';
 $string['settings_sds_intro_desc'] = 'The Microsoft School Data Sync ("SDS") simplifies class management in Microsoft 365, by reading rosters from external SIS and create classes and groups in Microsoft 365. <a href="https://sds.microsoft.com/" target="_blank">Learn More</a><br/>
 <br/>
-The SDS sync feature is capable of synchronising roster data from SDS to Moodle, including courses, teachers and students.<br/>
+The SDS sync feature is capable of synchronising roster data from SDS to Moodle, including classes, teachers and students.<br/>
 <br/>
 In order to use the SDS sync feature, please ensure the Microsoft Entra ID app used for the integration has <b>EduRoster.Read.All</b> and <b>Member.Read.Hidden</b> Microsoft Graph application permissions, which are not automatically added by the default set up. Admin consent needs to be granted for them too.<br/>
 <br/>
 By default, the SDS sync process happens daily in the Moodle cron, at 3am server time. To change this schedule, please visit the <a href="{$a}">scheduled tasks management page.</a><br/><br/>';
-$string['settings_sds_coursecreation'] = 'Course Sync';
+$string['settings_sds_coursecreation'] = 'Class to Course Sync';
 $string['settings_sds_coursecreation_desc'] = 'These options control creating Moodle courses based on SDS school classes.';
 $string['settings_sds_coursecreation_enabled'] = 'Synced schools';
-$string['settings_sds_coursecreation_enabled_desc'] = 'Create courses for these schools.';
+$string['settings_sds_coursecreation_enabled_desc'] = 'Create courses for classes in these schools.';
 $string['settings_sds_teams_enabled'] = 'SDS classes already have Teams?';
 $string['settings_sds_teams_enabled_desc'] = 'Check this if the SDS classes already have Teams created by the SDS configuration. If checked, Moodle will not try to create Teams from the Moodle courses created from SDS classes to avoid conflicts.';
 $string['settings_sds_courseenrolsync'] = 'Course Enrolment Sync';
 $string['settings_sds_courseenrolsync_desc'] = 'These options control synchronising course enrolments from SDS school classes.';
-$string['settings_sds_enrolment_enabled'] = 'Sync enrolments from SDS classes to Moodle courses at course creation';
-$string['settings_sds_enrolment_enabled_desc'] = 'Enrol SDS class teachers and students into Moodle courses created from the SDS classes when syncing a SDS class initially.<br />
-Note this is a once-off sync when creating a Moodle course from a SDS class for the first time. In order to continuously sync SDS class teacher/member role changes to Moodle courses, <b>Advanced enrolments sync with SDS classes</b> option has to be enabled, and <b>Teacher role</b> and <b>Member role</b> settings have to be configured.';
-$string['settings_sds_sync_enrolment_to_sds'] = 'Advanced enrolments sync with SDS classes';
-$string['settings_sds_sync_enrolment_to_sds_desc'] = 'This option requires <b>Enrol users</b> option to be enabled to work.<br />
-If this setting is enabled, the SDS class sync will do the following:
+$string['settings_sds_enrolment_enabled'] = 'Sync enrolments from SDS to Moodle';
+$string['settings_sds_enrolment_enabled_desc'] = 'When enabled, the SDS sync scheduled task will enrol teachers and students from SDS classes into their corresponding Moodle courses, and remove users who are no longer in the SDS class. Requires <b>Teacher role</b> and <b>Member role</b> to be configured.';
+$string['settings_sds_sync_enrolment_to_sds'] = 'Sync enrolments from Moodle to SDS';
+$string['settings_sds_sync_enrolment_to_sds_desc'] = 'When enabled, enrolment changes made in Moodle courses connected to SDS classes will be synchronised back to SDS classes. The ownership / membership status of the user in SDS will depend on the "local/o365:teamowner" and "local/o365:teammember" capabilities in the course context.';
+$string['settings_sds_suspend_enrolment'] = 'Suspend user enrolments instead of unenrolling';
+$string['settings_sds_suspend_enrolment_desc'] = 'When this option is enabled, users who are removed from an SDS class will have their enrolment suspended in the connected Moodle course instead of being completely unenrolled. This preserves user data such as grades, submissions, and activity completion. When users are added back to the SDS class, their enrolment will be automatically reactivated.<br />
+<b>Note:</b> Teachers are never suspended or unenrolled by SDS sync. This setting only affects students.';
+$string['settings_sds_enable_course_sync'] = 'Enable two-way course sync';
+$string['settings_sds_enable_course_sync_desc'] = 'When enabled, each Moodle course created from an SDS class will be linked to its Microsoft 365 group in the database, activating the full Microsoft 365 course sync integration (Teams, files, calendar, etc.) for that course. If the SDS class already has a Team, a Teams association record is also created.';
+$string['settings_sds_categorize_by_subject'] = 'Categorize courses by subject';
+$string['settings_sds_categorize_by_subject_desc'] = 'When enabled, courses will be organized into subject-based categories within each school category. The subject name is extracted from the class information in SDS. When disabled, all courses are placed directly in the school category.';
+$string['settings_sds_ignore_past_courses'] = 'Ignore expired/past classes';
+$string['settings_sds_ignore_past_courses_desc'] = 'When enabled, classes that have expired or ended will be skipped during sync. This includes:<br />
 <ul>
-<li>Changes in SDS class ownership / membership status will be synced to Moodle course and reflected in Moodle user role changes.</li>
-<li>User enrolment changes, such as enrolments and unenrolments, that are made in Moodle course connected to SDS classes will be synchronised back to SDS classes. The ownership / membership status of the user will depend on the "local/o365:teamowner" and "local/o365:teammember" capabilities in the course context.</li>
-</ul>';
-$string['settings_sds_enrolment_teacher_role'] = 'Teacher role';
-$string['settings_sds_enrolment_teacher_role_desc'] = 'If the "Enrol users" option is enabled, teachers in SDS class will be enrolled in connected Moodle course with this role.';
-$string['settings_sds_enrolment_student_role'] = 'Member role';
-$string['settings_sds_enrolment_student_role_desc'] = 'If the "Enrol users" option is enabled, students in SDS class will be enrolled in connected Moodle course with this role.';
+<li>Classes with the configured expired prefix in their name (default: "Exp")</li>
+<li>Classes with an end date in the past</li>
+</ul>
+This helps keep your course catalog clean by not creating courses for old or archived classes.';
+$string['settings_sds_expired_course_prefix'] = 'Expired class name prefix';
+$string['settings_sds_expired_course_prefix_desc'] = 'Class names starting with this prefix will be considered expired and skipped during sync (if "Ignore expired/past classes" is enabled). Default: "Exp"';
+$string['settings_sds_cohortsync'] = 'Cohort Sync';
+$string['settings_sds_cohortsync_desc'] = 'These options control creating and synchronizing cohorts from SDS classes. Cohorts provide an alternative way to group users that can be used for site-wide enrollment or other Moodle features.';
+$string['settings_sds_create_cohorts'] = 'Create cohorts from SDS classes';
+$string['settings_sds_create_cohorts_desc'] = 'When enabled, a cohort will be created for each SDS class and membership will be kept synchronized with the SDS class. Cohorts are created in the context of the course category (school or subject category depending on your categorization settings).<br />
+<b>Note:</b> Cohorts are created in addition to courses, not instead of them. This allows you to use cohorts for site-wide enrollment or grouping while still maintaining SDS-synced courses.';
+$string['settings_sds_cohort_include_teachers'] = 'Include teachers in cohorts';
+$string['settings_sds_cohort_include_teachers_desc'] = 'When enabled, teachers from the SDS class will be added to the cohort along with students. When disabled, only students will be added to cohorts.';
+$string['settings_sds_enrolment_teacher_role'] = 'SDS class teacher role in Moodle';
+$string['settings_sds_enrolment_teacher_role_desc'] = 'If "Sync enrolments from SDS to Moodle" is enabled, teachers in the SDS class will be enrolled in the connected Moodle course with this role.';
+$string['settings_sds_enrolment_student_role'] = 'SDS class student role in Moodle';
+$string['settings_sds_enrolment_student_role_desc'] = 'If "Sync enrolments from SDS to Moodle" is enabled, students in the SDS class will be enrolled in the connected Moodle course with this role.';
 $string['settings_sds_profilesync_header'] = 'User Profile Sync';
 $string['settings_sds_profilesync_header_desc'] = 'Each SDS school may store user profile for teachers and members of the school. The field is school-specific, i.e. different schools may have different values in the same field for the same user.<br/>
 If a school is selected in this section, the SDS user profile fields can be configured in user field mapping.
@@ -767,6 +787,13 @@ $string['eventapifail'] = 'API failure';
 $string['errorupnchangeisnotsupported'] = 'Your Microsoft account UPN has changed. Please contact your administrator to update your Moodle account.';
 $string['errortenantvaluenotstring'] = 'Tenant value must be a string';
 $string['errorunabletofindgraphapi'] = 'Unable to find graph api in application.';
+$string['erroremptyjwt'] = 'Empty JWT token provided';
+$string['errornocachedjwks'] = 'No cached JWKS found';
+$string['errorfetchjwks'] = 'Failed to fetch JWKS from Microsoft';
+$string['errorinvalidjwks'] = 'Invalid JWKS format received from Microsoft';
+$string['errorjwtvalidation'] = 'JWT validation failed';
+$string['errorjwtinvalidissuer'] = 'JWT issuer validation failed';
+$string['errorjwtinvalidaudience'] = 'JWT audience validation failed';
 $string['errorcannotgettoken'] = 'Could not get app or system token.';
 $string['errornotokenforsysmemuser'] = 'No token available for system user. Please run local_o365 health check.';
 $string['errornotoken'] = 'No token available for user #{$a}';
@@ -897,9 +924,12 @@ $string['task_coursesync'] = 'Sync Moodle courses to Microsoft Teams';
 $string['task_coursemembershipsync'] = 'Sync Microsoft Teams owners and members to Moodle courses';
 $string['task_sds_sync'] = 'Sync with SDS';
 $string['task_syncusers'] = 'Sync users from Microsoft Entra ID';
+$string['task_syncusersphotostimezones'] = 'Sync user photos and timezones from Microsoft Entra ID';
+$string['task_userenabledstatussync'] = 'Suspend/re-enable/delete users based on Microsoft Entra ID status';
 $string['task_processmatchqueue'] = 'Process Match Queue';
 $string['task_notifysecretexpiry'] = 'Notify site admin about Microsoft Entra ID app secret expiry';
 $string['task_checkinvalidconfiglog'] = 'Check and clean up invalid config log records';
+$string['task_usergroupmembershipsync'] = 'Sync user course group membership to Microsoft 365';
 $string['task_processmatchqueue_err_museralreadymatched'] = 'Moodle user is already matched to a Microsoft 365 user.';
 $string['task_processmatchqueue_err_museralreadyo365'] = 'Moodle user is already connected to Microsoft 365.';
 $string['task_processmatchqueue_err_nomuser'] = 'No Moodle user found with this username.';
@@ -1022,6 +1052,5 @@ Please review the secret to ensure the integration works as expected.';
 
 // Misc.
 $string['spsite_group_contributors_desc'] = 'All users who have access to manage files for course {$a}';
-
 // phpcs:enable moodle.Files.LangFilesOrdering.IncorrectOrder
 // phpcs:enable moodle.Files.LangFilesOrdering.UnexpectedComment

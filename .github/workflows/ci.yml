@@ -18,7 +18,7 @@ jobs:
 
     services:
       postgres:
-        image: postgres:14
+        image: postgres:15
         env:
           POSTGRES_USER: 'postgres'
           POSTGRES_HOST_AUTH_METHOD: 'trust'
@@ -43,7 +43,7 @@ jobs:
       fail-fast: false
       matrix:
         folder: [auth/oidc, blocks/microsoft, local/o365, local/office365, local/onenote, repository/office365, theme/boost_o365teams, mod/assign/feedback/onenote, mod/assign/submission/onenote]
-        moodle-branch: ['MOODLE_500_STABLE']
+        moodle-branch: ['MOODLE_501_STABLE']
         php: [8.2, 8.3, 8.4]
         database: [pgsql, mariadb]
         include:
@@ -62,7 +62,7 @@ jobs:
 
     steps:
     - name: Check out sub repository code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
       with:
         sparse-checkout: |
           ${{ matrix.folder }}

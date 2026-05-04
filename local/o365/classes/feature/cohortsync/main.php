@@ -217,22 +217,27 @@ class main {
     /**
      * Update Groups cache.
      *
-     * @return bool
+     * @return bool|null True if the cache was updated, null if skipped (rate limit), false on error.
      */
-    public function update_groups_cache(): bool {
+    public function update_groups_cache(): ?bool {
         global $DB;
 
         try {
-            if (utils::update_groups_cache($this->graphclient, 1)) {
+            $result = utils::update_groups_cache($this->graphclient, 1);
+            if ($result === true) {
                 $sql = 'SELECT *
                           FROM {local_o365_groups_cache}
                          WHERE not_found_since = 0';
-                $this->grouplist = $DB->get_records_sql($sql);
-
-                return true;
-            } else {
-                return false;
+                $records = $DB->get_records_sql($sql);
+                $this->grouplist = [];
+                foreach ($records as $record) {
+                    $this->grouplist[] = [
+                        'id' => $record->objectid,
+                        'displayName' => $record->name,
+                    ];
+                }
             }
+            return $result;
         } catch (moodle_exception $e) {
             utils::debug('Exception in update_groups_cache: ' . $e->getMessage(), __METHOD__, $e);
             return false;
@@ -270,7 +275,7 @@ class main {
         }
 
         try {
-            $memberrecords = $this->graphclient->get_group_members($groupoid);
+            $memberrecords = $this->graphclient->get_transitive_group_members($groupoid);
             $ownerrecords = $this->graphclient->get_group_owners($groupoid);
         } catch (moodle_exception $e) {
             if (strpos($e->getMessage(), utils::RESOURCE_NOT_EXIST_ERROR) !== false) {
@@ -434,7 +439,7 @@ class main {
      * @param string $caller The calling function, used for logging.
      * @return unified|bool A Microsoft Graph API instance.
      */
-    public static function get_unified_api(string $caller = 'local_o365/feature/courserequest/get_unified_api') {
+    public static function get_unified_api(string $caller = 'local_o365/feature/cohortsync/get_unified_api') {
         $clientdata = clientdata::instance_from_oidc();
         $httpclient = new httpclient();
         $tokenresource = unified::get_tokenresource();

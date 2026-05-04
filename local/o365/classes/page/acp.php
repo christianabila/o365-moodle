@@ -626,7 +626,11 @@ class acp extends base {
         $search = optional_param('search', '', PARAM_TEXT);
         $sortdir = strtolower(optional_param('sortdir', 'asc', PARAM_ALPHA));
 
-        $headers = ['fullname' => get_string('fullnamecourse'), 'shortname' => get_string('shortnamecourse')];
+        $headers = [
+            'fullname' => get_string('fullnamecourse'),
+            'shortname' => get_string('shortnamecourse'),
+            'visible' => get_string('coursevisibility'),
+        ];
         if (empty($sort) || !isset($headers[$sort])) {
             $sort = 'fullname';
         }
@@ -670,6 +674,8 @@ class acp extends base {
 
         $sdscourseids = \local_o365\feature\sds\utils::get_sds_course_ids();
 
+        $synchiddencourses = get_config('local_o365', 'synchiddencourses');
+
         foreach ($courses as $course) {
             if ($course->id == SITEID) {
                 continue;
@@ -691,8 +697,18 @@ class acp extends base {
 
             $courseurl = new moodle_url('/course/view.php', ['id' => $course->id]);
 
-            $rowdata = [html_writer::link($courseurl, $course->fullname), $course->shortname,
-                html_writer::checkbox($enabledname, 1, $isenabled, '', $enablecheckboxattrs) . ' ' . $sdscoursetext];
+            if ($course->visible) {
+                $visiblestr = get_string('show');
+            } else {
+                $visiblestr = get_string('hide');
+            }
+
+            $rowdata = [
+                html_writer::link($courseurl, $course->fullname),
+                $course->shortname,
+                $visiblestr,
+                html_writer::checkbox($enabledname, 1, $isenabled, '', $enablecheckboxattrs) . ' ' . $sdscoursetext,
+            ];
             $table->data[] = $rowdata;
         }
 
@@ -836,6 +852,11 @@ var local_o365_coursesync_all_set_feature = function(state) {
         echo html_writer::empty_tag('br');
 
         echo html_writer::tag('h5', get_string('courses'));
+
+        if (!$synchiddencourses) {
+            echo html_writer::tag('p', get_string('acp_coursesync_hidden_course_note', 'local_o365'));
+        }
+
         echo html_writer::table($table);
         echo html_writer::tag(
             'p',
@@ -1008,6 +1029,8 @@ var local_o365_coursesync_all_set_feature = function(state) {
                     ['moodleid' => $course->id, 'type' => 'group', 'subtype' => 'course']
                 )
             ) {
+                $teamscachedata = ['objectid' => $grouprecord->objectid, 'has_team' => 1];
+
                 if (
                     $DB->record_exists(
                         'local_o365_objects',
@@ -1019,7 +1042,7 @@ var local_o365_coursesync_all_set_feature = function(state) {
                     )
                 ) {
                     // Connected to both group and team.
-                    if ($teamscache = $DB->get_record('local_o365_teams_cache', ['objectid' => $grouprecord->objectid])) {
+                    if ($teamscache = $DB->get_record('local_o365_groups_cache', $teamscachedata)) {
                         // Team record can be found in cache.
                         $existingconnection = html_writer::link($teamscache->url, $teamscache->name);
                         if (
@@ -1057,7 +1080,7 @@ var local_o365_coursesync_all_set_feature = function(state) {
                         $connectlabel = get_string('acp_teamconnections_table_connect', 'local_o365');
 
                         $actions = [html_writer::link($connecturl, $connectlabel)];
-                    } else if ($teamscache = $DB->get_record('local_o365_teams_cache', ['objectid' => $grouprecord->objectid])) {
+                    } else if ($teamscache = $DB->get_record('local_o365_groups_cache', $teamscachedata)) {
                         // Connect the course with the team.
                         $teamobjectrecord = ['type' => 'group', 'subtype' => 'courseteam', 'objectid' => $teamscache->objectid,
                             'moodleid' => $course->id, 'o365name' => $teamscache->name, 'timecreated' => time(),
@@ -1176,8 +1199,9 @@ var local_o365_coursesync_all_set_feature = function(state) {
         confirm_sesskey();
 
         $graphclient = \local_o365\feature\coursesync\utils::get_graphclient();
-        $coursesync = new main($graphclient);
-        $coursesync->update_teams_cache();
+        // Pass forceupdate=true so an explicit admin request is never silently skipped
+        // by the 5-minute rate limit that applies to automated task runs.
+        \local_o365\utils::update_groups_cache($graphclient, 0, true);
 
         $redirecturl = new moodle_url('/local/o365/acp.php', ['mode' => 'teamconnections']);
         redirect($redirecturl, get_string('acp_teamconnections_teams_cache_updated', 'local_o365'));
@@ -1230,7 +1254,7 @@ var local_o365_coursesync_all_set_feature = function(state) {
                 redirect($redirecturl);
             }
 
-            if (!$teamcacherecord = $DB->get_record('local_o365_teams_cache', ['id' => $teamid])) {
+            if (!$teamcacherecord = $DB->get_record('local_o365_groups_cache', ['id' => $teamid, 'has_team' => 1])) {
                 throw new moodle_exception('acp_teamconnections_exception_invalid_team_id', 'local_o365', $redirecturl);
             } else if (
                 $DB->record_exists(
@@ -1377,7 +1401,7 @@ var local_o365_coursesync_all_set_feature = function(state) {
                 redirect($redirecturl);
             }
 
-            if (!$teamcacherecord = $DB->get_record('local_o365_teams_cache', ['id' => $teamid])) {
+            if (!$teamcacherecord = $DB->get_record('local_o365_groups_cache', ['id' => $teamid, 'has_team' => 1])) {
                 throw new moodle_exception('acp_teamconnections_exception_invalid_team_id', 'local_o365', $redirecturl);
             } else if (
                 $teamobjectrecord = $DB->get_record(
@@ -1994,7 +2018,7 @@ var local_o365_coursesync_all_set_feature = function(state) {
                 throw new moodle_exception('acp_userconnections_manualmatch_error_o365userconnected', 'local_o365');
             }
 
-            // Check if a o365 user object record already exists.
+            // Check if an o365 user object record already exists.
             $params = ['moodleid' => $userid, 'type' => 'user'];
             $existingobject = $DB->get_record('local_o365_objects', $params);
             if (!empty($existingobject) && $existingobject->o365name === $o365username) {
