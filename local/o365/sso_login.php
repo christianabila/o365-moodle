@@ -23,13 +23,16 @@
  * @copyright (C) 2018 onwards Microsoft, Inc. (http://microsoft.com/)
  */
 
+use core\context\system;
+use core\url;
+
 // phpcs:ignore moodle.Files.RequireLogin.Missing -- This file is called from Microsoft Teams tab.
 require_once(__DIR__ . '/../../config.php');
 require_once($CFG->dirroot . '/local/o365/lib.php');
 
-$url = new moodle_url('/local/o365/sso_login.php');
+$url = new url('/local/o365/sso_login.php');
 
-$PAGE->set_context(context_system::instance());
+$PAGE->set_context(system::instance());
 
 // Get the JWT token from Teams.
 $authtoken = local_o365_get_auth_token();
@@ -159,13 +162,33 @@ if (!$loginsuccess && !empty($payload->upn)) {
     if ($potentialuser) {
         // User exists with matching email but not set up for OIDC.
         // Redirect them to the OIDC authorization flow.
-        $wantsurl = new moodle_url('/');
-        $loginurl = new moodle_url('/auth/oidc/', ['wantsurl' => $wantsurl->out()]);
+        $wantsurl = new url('/');
+        $loginurl = new url('/auth/oidc/', ['wantsurl' => $wantsurl->out()]);
         redirect($loginurl);
     }
 }
 
 if ($loginsuccess) {
+    // Force theme.
+    $customtheme = get_config('local_o365', 'customtheme');
+    if (!empty($customtheme) && get_config('theme_' . $customtheme, 'version')) {
+        $SESSION->theme = $customtheme;
+    } else if (get_config('theme_boost_o365teams', 'version')) {
+        $SESSION->theme = 'boost_o365teams';
+    }
+
+    // The session cookie set by core carries SameSite=Lax (MDL-83526), which browsers reject in
+    // the cross-site iframe of the Teams tab, so re-emit it with "SameSite=None; Secure".
+    if (is_https() || !empty($CFG->sslproxy)) {
+        $cookieparams = session_get_cookie_params();
+        setcookie(session_name(), session_id(), [
+            'path' => $cookieparams['path'],
+            'domain' => $cookieparams['domain'],
+            'secure' => true,
+            'httponly' => $cookieparams['httponly'],
+            'samesite' => 'None',
+        ]);
+    }
     http_response_code(200);
 } else {
     http_response_code(401);

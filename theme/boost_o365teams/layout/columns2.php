@@ -22,22 +22,13 @@
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
+use core\context\course;
+
 defined('MOODLE_INTERNAL') || die();
 
 require_once($CFG->libdir . '/behat/lib.php');
 
-if (isloggedin()) {
-    $navdraweropen = (get_user_preferences('drawer-open-nav', 'true') == 'true');
-} else {
-    $navdraweropen = false;
-}
-
-$extraclasses = [];
-if ($navdraweropen) {
-    $extraclasses[] = 'drawer-open-left';
-}
-
-$bodyattributes = $OUTPUT->body_attributes($extraclasses);
+$bodyattributes = $OUTPUT->body_attributes();
 $blockshtml = $OUTPUT->blocks('side-pre');
 $hasblocks = strpos($blockshtml, 'data-block=') !== false;
 $showfeedback = get_config('theme_boost_o365teams', 'showteamfeedbacklink');
@@ -52,13 +43,12 @@ if ((strpos($url, 'course/view.php') !== false) && (strpos($url, 'section=') == 
 }
 
 $templatecontext = [
-        'sitename' => format_string($SITE->shortname, true, ['context' => context_course::instance(SITEID), "escape" => false]),
+        'sitename' => format_string($SITE->shortname, true, ['context' => course::instance(SITEID), "escape" => false]),
         'output' => $OUTPUT,
         'sidepreblocks' => $blockshtml,
         'hasblocks' => $hasblocks,
         'showfeedback' => $showfeedback,
         'bodyattributes' => $bodyattributes,
-        'navdraweropen' => $navdraweropen,
         'regionmainsettingsmenu' => $regionmainsettingsmenu,
         'hasregionmainsettingsmenu' => !empty($regionmainsettingsmenu),
         'course_page' => $coursepage,
