@@ -1,0 +1,148 @@
+<?php
+// This file is part of Moodle - https://moodle.org/
+//
+// Moodle is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Moodle is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with Moodle.  If not, see <https://www.gnu.org/licenses/>.
+
+/**
+ * tiny_teamsmeeting get meeting details web service function.
+ *
+ * @package     tiny_teamsmeeting
+ * @copyright   2025 Enovation Solutions
+ * @author      Lai Wei <lai.wei@enovation.ie>
+ * @license     https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
+
+namespace tiny_teamsmeeting\external;
+
+use context;
+use context_system;
+use core_external\external_api;
+use core_external\external_function_parameters;
+use core_external\external_single_structure;
+use core_external\external_value;
+use moodle_exception;
+use moodle_url;
+use required_capability_exception;
+use stdClass;
+use tiny_teamsmeeting\token;
+
+/**
+ * Get existing meeting details from database.
+ *
+ * @package     tiny_teamsmeeting
+ */
+class get_meeting_details extends external_api {
+    /**
+     * Web service function parameter definition for get_meeting_details function.
+     *
+     * @return external_function_parameters
+     */
+    public static function execute_parameters(): external_function_parameters {
+        return new external_function_parameters([
+            'url' => new external_value(PARAM_URL, 'Link to the Teams meeting', VALUE_REQUIRED),
+        ]);
+    }
+
+    /**
+     * Get meeting details from database by url.
+     *
+     * @param string $url
+     * @return array
+     * @throws moodle_exception
+     * @throws required_capability_exception
+     */
+    public static function execute(string $url): array {
+        $params = self::validate_parameters(self::execute_parameters(), ['url' => $url]);
+
+        self::validate_context(context_system::instance());
+
+        $record = self::get_meeting($params['url']);
+        if (!$record) {
+            return [
+                'status' => false,
+                'url' => (new moodle_url('/lib/editor/tiny/plugins/teamsmeeting/error.php'))->out(),
+            ];
+        }
+
+        // Access is gated on holding the capability in the meeting's context,
+        // not on being the original creator: content containing a meeting link
+        // is routinely edited by more than one teacher, and every editor with
+        // the capability must be able to load its details.
+        $context = null;
+        if (!empty($record->contextid)) {
+            // The course the meeting was created in may since have been deleted.
+            $context = context::instance_by_id($record->contextid, IGNORE_MISSING) ?: null;
+        }
+        if (!$context) {
+            $context = context_system::instance();
+        }
+        require_capability('tiny/teamsmeeting:add', $context);
+
+        // The result.php page runs without a session and authenticates from this token.
+        $resulturl = new moodle_url('/lib/editor/tiny/plugins/teamsmeeting/result.php', [
+            'title' => $record->title,
+            'link' => $record->link,
+            'options' => $record->options,
+            'viewexisting' => 1,
+            'session' => token::generate(),
+        ]);
+        return [
+            'status' => true,
+            'url' => $resulturl->out(),
+        ];
+    }
+
+    /**
+     * Find the existing meeting record in the database for the given URL.
+     *
+     * The lookup uses the indexed linkhash column (SHA1 of the URL) rather than
+     * a full TEXT comparison so it benefits from the unique index. Duplicates are
+     * prevented at insert time, so at most one row will match.
+     *
+     * @param string $url
+     * @return stdClass|null
+     */
+    private static function get_meeting(string $url): ?stdClass {
+        global $DB;
+
+        // Normalise percent-encoding to uppercase before hashing so lookups
+        // succeed whether or not Moodle re-saved the HTML (which uppercases %xx).
+        $normalised = preg_replace_callback('/%[0-9a-f]{2}/i', fn($m) => strtoupper($m[0]), $url);
+        $record = $DB->get_record('tiny_teamsmeeting', ['linkhash' => sha1($normalised)]);
+
+        if (!$record) {
+            // Fallback for rows created before normalisation: try lowercase hex digits.
+            $lowercased = preg_replace_callback('/%[0-9A-F]{2}/', fn($m) => strtolower($m[0]), $normalised);
+            if ($lowercased !== $normalised) {
+                $record = $DB->get_record('tiny_teamsmeeting', ['linkhash' => sha1($lowercased)]);
+            }
+        }
+
+        return $record ?: null;
+    }
+
+    /**
+     * Return value definition of get_meeting_details function.
+     *
+     * @return external_single_structure
+     */
+    public static function execute_returns(): external_single_structure {
+        return new external_single_structure(
+            [
+                'status' => new external_value(PARAM_BOOL, 'Status of the operation'),
+                'url' => new external_value(PARAM_URL, 'URL link'),
+            ]
+        );
+    }
+}

@@ -1,0 +1,274 @@
+<?php
+// This file is part of Moodle - http://moodle.org/
+//
+// Moodle is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Moodle is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+
+/**
+ * A script that handles the result of the meeting creation.
+ *
+ * @package     tiny_teamsmeeting
+ * @copyright   2023 Enovation Solutions
+ * @author      Oliwer Banach <oliwer.banach@enovation.ie>
+ * @license     https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
+
+// This script is always loaded inside an iframe that does not carry the Moodle
+// session cookie (the meetings-app callback is cross-site; the "view existing"
+// request is same-origin but treated identically). Every request is
+// authenticated by the signed token instead, so no session is started: that
+// keeps a leaked token from being exchanged for - or clobbering - a real
+// Moodle session.
+define('NO_MOODLE_COOKIES', true);
+
+require_once(__DIR__ . '/../../../../../config.php');
+
+// This script echoes its response directly rather than through $OUTPUT, so the
+// standard security headers (notably X-Frame-Options) must be sent explicitly.
+send_headers('text/html; charset=utf-8', false);
+
+$courseid = optional_param('courseid', 0, PARAM_INT);
+$viewexisting = optional_param('viewexisting', 0, PARAM_INT);
+$meetinglink = optional_param('link', null, PARAM_URL);
+// Normalise percent-encoding to uppercase (RFC 3986) so the SHA1 hash is
+// stable regardless of whether Moodle has re-saved the HTML (which uppercases
+// %xx sequences) since the meeting was first created.
+if ($meetinglink !== null) {
+    $meetinglink = preg_replace_callback('/%[0-9a-f]{2}/i', fn($m) => strtoupper($m[0]), $meetinglink);
+}
+$title = optional_param('title', null, PARAM_TEXT);
+$preview = optional_param('preview', null, PARAM_CLEANHTML);
+$optionslink = optional_param('options', null, PARAM_URL);
+$session = optional_param('session', '', PARAM_RAW_TRIMMED);
+
+// Authenticate the request from the signed token and act on behalf of the user
+// it names.
+$tokenuserid = \tiny_teamsmeeting\token::validate($session);
+if (!$tokenuserid) {
+    throw new moodle_exception('invalidtoken', 'tiny_teamsmeeting');
+}
+// The token names a user; make sure they still exist and are active.
+if (!$DB->record_exists('user', ['id' => $tokenuserid, 'deleted' => 0, 'suspended' => 0])) {
+    throw new moodle_exception('invaliduser');
+}
+
+if ($viewexisting) {
+    // Showing the details of a meeting that already exists.
+    if ($meetinglink) {
+        $viewrecord = $DB->get_record('tiny_teamsmeeting', ['linkhash' => sha1($meetinglink)]);
+        if (!$viewrecord) {
+            // Fallback for rows stored before normalisation (lowercase hex in %xx sequences).
+            $lowercased = preg_replace_callback('/%[0-9A-F]{2}/', fn($m) => strtolower($m[0]), $meetinglink);
+            if ($lowercased !== $meetinglink) {
+                $viewrecord = $DB->get_record('tiny_teamsmeeting', ['linkhash' => sha1($lowercased)]);
+            }
+        }
+    } else {
+        $viewrecord = null;
+    }
+    $context = null;
+    if ($viewrecord && !empty($viewrecord->contextid)) {
+        // The course the meeting was created in may since have been deleted.
+        $context = context::instance_by_id($viewrecord->contextid, IGNORE_MISSING) ?: null;
+    }
+    if (!$context) {
+        $context = context_system::instance();
+    }
+} else if ($courseid) {
+    $course = $DB->get_record('course', ['id' => $courseid], '*', MUST_EXIST);
+    $context = context_course::instance($course->id);
+} else {
+    $context = context_system::instance();
+}
+
+require_capability('tiny/teamsmeeting:add', $context, $tokenuserid);
+
+$meetingoptions = null;
+
+if (!empty($preview) && !empty($meetinglink)) {
+    $htmldom = new DOMDocument();
+    @$htmldom->loadHTML($preview);
+    $links = $htmldom->getElementsByTagName('a');
+    foreach ($links as $link) {
+        $href = $link->getAttribute('href');
+        if ($href && strpos($href, 'meetingOptions') !== false && filter_var($href, FILTER_VALIDATE_URL)) {
+            $meetingoptions = $href;
+            break;
+        }
+    }
+
+    $linkhash = sha1($meetinglink);
+    if (!$DB->record_exists('tiny_teamsmeeting', ['linkhash' => $linkhash])) {
+        $meetingdata = new stdClass();
+        $meetingdata->title = $title;
+        $meetingdata->link = $meetinglink;
+        $meetingdata->linkhash = $linkhash;
+        $meetingdata->options = $meetingoptions;
+        $meetingdata->timecreated = time();
+        $meetingdata->userid = $tokenuserid;
+        $meetingdata->contextid = $context->id;
+        try {
+            $DB->insert_record('tiny_teamsmeeting', $meetingdata);
+        } catch (dml_write_exception $e) {
+            // Only tolerate losing the unique-linkhash race to a concurrent
+            // request that inserted the same link first; rethrow anything else.
+            if (!$DB->record_exists('tiny_teamsmeeting', ['linkhash' => $linkhash])) {
+                throw $e;
+            }
+        }
+    }
+} else if (
+    !empty($optionslink)
+    && filter_var($optionslink, FILTER_VALIDATE_URL)
+    && parse_url($optionslink, PHP_URL_SCHEME) === 'https'
+) {
+    $meetingoptions = $optionslink;
+
+    if (!empty($meetinglink) && !empty($title)) {
+        $linkhash = sha1($meetinglink);
+        $existingrecord = $DB->get_record('tiny_teamsmeeting', ['linkhash' => $linkhash]);
+        if (!$existingrecord) {
+            $meetingdata = new stdClass();
+            $meetingdata->title = $title;
+            $meetingdata->link = $meetinglink;
+            $meetingdata->linkhash = $linkhash;
+            $meetingdata->options = $meetingoptions;
+            $meetingdata->timecreated = time();
+            $meetingdata->userid = $tokenuserid;
+            $meetingdata->contextid = $context->id;
+            $DB->insert_record('tiny_teamsmeeting', $meetingdata);
+        } else if ($existingrecord->options !== $meetingoptions) {
+            $existingrecord->options = $meetingoptions;
+            $DB->update_record('tiny_teamsmeeting', $existingrecord);
+        }
+    }
+}
+
+$PAGE->set_context($context);
+$PAGE->set_pagelayout('standard');
+$PAGE->set_url(new moodle_url('/lib/editor/tiny/plugins/teamsmeeting/result.php', [
+    'courseid'    => $courseid,
+    'viewexisting' => $viewexisting,
+]));
+
+// Build success SVG icon.
+$svgattributes = [
+    'class' => 'meetingsuccess',
+    'xmlns' => 'http://www.w3.org/2000/svg',
+    'viewBox' => '0 0 48 48',
+    'style' => 'width:100px; align-self: center; display: flex; margin-bottom: 1.5rem;',
+];
+
+$pathattributes = [
+    'd' => 'M24 0c2.2 0 4.3.3 6.4.9 2 .6 3.9 1.4 5.7 2.4 1.8 1 3.4 2.3 4.9 3.8 1.5 1.5 2.7 3.1 3.8 4.9 ' .
+        '1 1.8 1.8 3.7 2.4 5.7.6 2 .9 4.2.9 6.4s-.3 4.3-.9 6.3c-.6 2-1.4 3.9-2.4 5.7-1 ' .
+        '1.8-2.3 3.4-3.8 4.9-1.5 1.5-3.1 2.7-4.9 3.8-1.8 1-3.7 1.9-5.7 2.4-2 .6-4.1.9-6.4.9-2.2 ' .
+        '0-4.3-.3-6.3-.9-2-.6-3.9-1.4-5.7-2.4-1.8-1-3.4-2.3-4.9-3.8-1.5-1.5-2.7-3.1-3.8-4.9-1-' .
+        '1.8-1.9-3.7-2.4-5.7C.3 28.3 0 26.2 0 24s.3-4.3.9-6.4c.6-2 1.4-3.9 2.4-5.7 1-1.8 2.3-' .
+        '3.4 3.8-4.9 1.5-1.5 3.1-2.7 4.9-3.8 1.8-1 3.7-1.9 5.7-2.4S21.8 0 24 0zm7.9 17.1c-.6 ' .
+        '0-1.2.2-1.6.7l-8.5 8.5-3-3c-.4-.4-1-.7-1.6-.7-.3 0-.6.1-.8.2-.3.1-.5.3-.7.5s-.4.4-.5.7c-' .
+        '.2.3-.2.5-.2.8 0 .6.2 1.2.7 1.6l4.6 4.6c.4.4 1 .7 1.6.7.6 0 1.2-.2 1.6-.7l10.1-10.1c.4-' .
+        '.5.7-1 .7-1.6 0-.3-.1-.6-.2-.8-.1-.3-.3-.5-.5-.7s-.4-.4-.7-.5c-.4-.2-.7-.2-1-.2z',
+    'fill' => '#599c00',
+];
+
+$svg = html_writer::start_tag('svg', $svgattributes);
+$svg .= html_writer::empty_tag('path', $pathattributes);
+$svg .= html_writer::end_tag('svg');
+
+// Build header message.
+$headerattributes = [
+    'class' => 'meetingcreatedheader',
+    'style' => 'font-size: 20px; font-weight: 600; display: block; text-align: center;',
+];
+// Neither html_writer::tag() (contents) nor get_string() ($a placeholder)
+// escapes its input, so the title must be escaped before it is used here.
+$headermessage = html_writer::tag(
+    'span',
+    get_string('iframe_meeting_created', 'tiny_teamsmeeting', s($title ?? '')),
+    $headerattributes
+);
+
+$content = $svg . $headermessage;
+
+// Build meeting link button if available.
+if (!empty($meetinglink)) {
+    $buttonattributes = [
+        'class' => 'btn btn-primary',
+        'href' => $meetinglink,
+        'style' => 'display: inline-block; font-weight: 600; text-align: center; vertical-align: middle; ' .
+           'border: 1px solid hsla(0,0%,100%,.04); user-select: none; font-size: .875rem; line-height: 1.5; border-radius: 3px; ' .
+           'color: #fff; background-color: #6264a7; margin-top: 1rem; padding: .375rem .75rem; text-decoration: none;',
+        'target' => '_blank',
+    ];
+    $button = html_writer::link($meetinglink, get_string('iframe_go_to_meeting', 'tiny_teamsmeeting'), $buttonattributes);
+    $spanattributes = [
+        'class' => 'meetinglink',
+        'style' => 'display: block; text-align: center;',
+    ];
+    $content .= html_writer::tag('span', $button, $spanattributes);
+}
+
+// Build meeting options button if available.
+if (!empty($meetingoptions)) {
+    $buttonattributes = [
+        'class' => 'btn btn-primary',
+        'href' => $meetingoptions,
+        'style' => 'display: inline-block; font-weight: 600; text-align: center; vertical-align: middle; ' .
+           'border: 1px solid hsla(0,0%,100%,.04); user-select: none; font-size: .875rem; line-height: 1.5; border-radius: 3px; ' .
+           'color: #fff; background-color: #6264a7; margin-top: 1rem; padding: .375rem .75rem; text-decoration: none;',
+        'target' => '_blank',
+    ];
+    $button = html_writer::link($meetingoptions, get_string('iframe_meeting_options', 'tiny_teamsmeeting'), $buttonattributes);
+    $spanattributes = [
+        'class' => 'meetingoptions',
+        'style' => 'display: block; text-align: center;',
+    ];
+    $content .= html_writer::tag('span', $button, $spanattributes);
+}
+
+// Build container div.
+$divattributes = [
+    'style' => 'display: flex; flex-direction: column; margin-top: 2rem; padding: 2rem; font-family: sans-serif;',
+];
+echo html_writer::div($content, '', $divattributes);
+
+$parsed = parse_url($CFG->wwwroot);
+$origin = $parsed['scheme'] . '://' . $parsed['host'];
+if (!empty($parsed['port'])) {
+    $origin .= ':' . $parsed['port'];
+}
+
+$jsonflags = JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP;
+$payload = json_encode(['action' => 'meetingUrl', 'url' => $meetinglink ?? ''], $jsonflags);
+$encodedorigin = json_encode($origin, $jsonflags);
+$scriptcontent = <<<JS
+(function() {
+    var moodleOrigin = {$encodedorigin};
+    if (window.parent === window) {
+        return;
+    }
+    try {
+        if (window.parent.location.origin !== moodleOrigin) {
+            return;
+        }
+    } catch (e) {
+        // Cross-origin parent: suppress the postMessage call.
+        return;
+    }
+    window.parent.postMessage({$payload}, moodleOrigin);
+}());
+JS;
+echo html_writer::script($scriptcontent);
+
+exit;
